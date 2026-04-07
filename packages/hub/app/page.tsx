@@ -1,0 +1,83 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { LoginForm } from "../components/login-form";
+import { NodeGrid } from "../components/node-grid";
+import { useNodes } from "../hooks/use-nodes";
+import { wsClient } from "../lib/ws-client";
+
+function Dashboard() {
+  const nodes = useNodes();
+  const onlineCount = nodes.filter((n) => n.status === "online").length;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Nodes</h1>
+        <span className="text-sm text-gray-400">
+          <span className="text-success font-medium">{onlineCount}</span>
+          {" / "}
+          <span>{nodes.length}</span>
+          {" online"}
+        </span>
+      </div>
+      <NodeGrid nodes={nodes} />
+    </div>
+  );
+}
+
+export default function HomePage() {
+  const [authed, setAuthed] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("rc-token");
+    if (saved) {
+      // Auto-connect with saved token and wait for auth-result
+      const unsubscribe = wsClient.onMessage((msg) => {
+        if (msg.type === "auth-result") {
+          unsubscribe();
+          if (msg.success) {
+            setAuthed(true);
+          } else {
+            localStorage.removeItem("rc-token");
+          }
+          setReady(true);
+        }
+      });
+
+      wsClient.connect(saved);
+
+      // Fallback: if no auth-result within 5s, show login form
+      const timer = setTimeout(() => {
+        unsubscribe();
+        setReady(true);
+      }, 5000);
+
+      return () => {
+        clearTimeout(timer);
+        unsubscribe();
+      };
+    } else {
+      setReady(true);
+    }
+  }, []);
+
+  const handleAuth = (token: string) => {
+    setAuthed(true);
+  };
+
+  if (!ready) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-gray-500 text-sm">Connecting…</p>
+      </div>
+    );
+  }
+
+  if (!authed) {
+    return <LoginForm onAuth={handleAuth} />;
+  }
+
+  return <Dashboard />;
+}
