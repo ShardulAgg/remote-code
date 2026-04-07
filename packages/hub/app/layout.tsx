@@ -14,8 +14,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
-        <nav className="border-b border-border bg-surface-light">
+      <body className="flex flex-col min-h-screen">
+        <nav className="border-b border-border bg-surface-light shrink-0">
           <div className="max-w-7xl mx-auto px-4 h-12 flex items-center gap-6">
             <Link
               href="/"
@@ -24,14 +24,14 @@ export default function RootLayout({
               Remote Code
             </Link>
             <Link
-              href="/terminals"
+              href="/terminal"
               className="text-gray-400 text-sm hover:text-white transition-colors"
             >
               Terminals
             </Link>
           </div>
         </nav>
-        <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
+        <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
       </body>
     </html>
   );

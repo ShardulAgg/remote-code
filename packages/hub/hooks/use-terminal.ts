@@ -10,6 +10,19 @@ interface ConnectOptions {
   command?: string;
 }
 
+// UTF-8 safe base64 encode/decode
+function toBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  const binStr = Array.from(bytes, (b) => String.fromCodePoint(b)).join("");
+  return btoa(binStr);
+}
+
+function fromBase64(b64: string): string {
+  const binStr = atob(b64);
+  const bytes = Uint8Array.from(binStr, (c) => c.codePointAt(0)!);
+  return new TextDecoder().decode(bytes);
+}
+
 export function useTerminal(nodeId: string, existingSessionId?: string) {
   const [sessionId] = useState<string>(() => existingSessionId ?? uuid());
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -31,7 +44,7 @@ export function useTerminal(nodeId: string, existingSessionId?: string) {
       wsClient.send({
         type: "terminal-input",
         sessionId,
-        data: btoa(data),
+        data: toBase64(data),
       });
     });
 
@@ -48,7 +61,7 @@ export function useTerminal(nodeId: string, existingSessionId?: string) {
     // Handle messages from hub -> terminal
     const unsubscribe = wsClient.onMessage((msg) => {
       if (msg.type === "terminal-data" && msg.sessionId === sessionId) {
-        terminal.write(atob(msg.data));
+        terminal.write(fromBase64(msg.data));
       } else if (msg.type === "terminal-closed" && msg.sessionId === sessionId) {
         terminal.write("\r\n[Session ended]\r\n");
       }

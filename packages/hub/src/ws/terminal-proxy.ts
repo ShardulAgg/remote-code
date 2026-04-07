@@ -7,17 +7,23 @@ import {
   setSessionStatus,
 } from "../db/queries.js";
 
+// Max scrollback buffer size per session (100KB of base64 data)
+const MAX_BUFFER_SIZE = 100 * 1024;
+
 interface TerminalSession {
   sessionId: string;
   nodeId: string;
   browserWs: WebSocket | null;
+  scrollback: string[]; // array of base64-encoded chunks
+  scrollbackSize: number; // total bytes in scrollback
 }
 
-// sessionId -> session info (including browser WS)
+// sessionId -> session info
 const sessions = new Map<string, TerminalSession>();
 
 /**
- * Open a new terminal session on the given agent node.
+ * Open a terminal session. If the session already exists (detached),
+ * reattach and replay the scrollback buffer instead of spawning a new PTY.
  */
 export function openTerminal(
   browserWs: WebSocket,
@@ -32,7 +38,38 @@ export function openTerminal(
 ): void {
   const { sessionId, nodeId, cols, rows, cwd, command } = opts;
 
-  sessions.set(sessionId, { sessionId, nodeId, browserWs });
+  // Check if this session already exists (reconnect case)
+  const existing = sessions.get(sessionId);
+  if (existing) {
+    // Reattach browser to existing session
+    existing.browserWs = browserWs;
+    setSessionStatus(sessionId, "active");
+
+    // Notify browser the terminal is open
+    if (browserWs.readyState === WebSocket.OPEN) {
+      browserWs.send(encode({ type: "terminal-opened", sessionId, nodeId: existing.nodeId }));
+    }
+
+    // Replay scrollback buffer
+    replayScrollback(existing, browserWs);
+
+    // Resize to match new browser dimensions
+    agentRegistry.sendToAgent(
+      existing.nodeId,
+      encode({ type: "pty-resize", sessionId, cols, rows })
+    );
+    return;
+  }
+
+  // New session
+  const session: TerminalSession = {
+    sessionId,
+    nodeId,
+    browserWs,
+    scrollback: [],
+    scrollbackSize: 0,
+  };
+  sessions.set(sessionId, session);
 
   // Persist session in DB
   createSession({ sessionId, nodeId, cwd: cwd ?? "" });
@@ -51,11 +88,43 @@ export function openTerminal(
 }
 
 /**
+ * Replay scrollback buffer to a browser WebSocket.
+ */
+function replayScrollback(session: TerminalSession, browserWs: WebSocket): void {
+  if (browserWs.readyState !== WebSocket.OPEN) return;
+
+  for (const chunk of session.scrollback) {
+    browserWs.send(encode({
+      type: "terminal-data",
+      sessionId: session.sessionId,
+      data: chunk,
+    }));
+  }
+}
+
+/**
+ * Append data to the session's scrollback buffer, trimming old data if needed.
+ */
+function appendScrollback(session: TerminalSession, data: string): void {
+  session.scrollback.push(data);
+  session.scrollbackSize += data.length;
+
+  // Trim from the front if we exceed max size
+  while (session.scrollbackSize > MAX_BUFFER_SIZE && session.scrollback.length > 1) {
+    const removed = session.scrollback.shift()!;
+    session.scrollbackSize -= removed.length;
+  }
+}
+
+/**
  * Forward PTY data from an agent to the connected browser.
  */
 export function handlePtyData(sessionId: string, data: string): void {
   const session = sessions.get(sessionId);
   if (!session) return;
+
+  // Store in scrollback buffer (even if no browser is connected)
+  appendScrollback(session, data);
 
   updateSessionActivity(sessionId);
 
@@ -152,6 +221,9 @@ export function reattach(sessionId: string, browserWs: WebSocket): void {
     browserWs.send(
       encode({ type: "terminal-opened", sessionId, nodeId: session.nodeId })
     );
+
+    // Replay scrollback
+    replayScrollback(session, browserWs);
   }
 }
 

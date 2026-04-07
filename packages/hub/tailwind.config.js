@@ -1,8 +1,14 @@
+const path = require("path");
+
+const hubDir = path.resolve(__dirname);
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./app/**/*.{js,ts,jsx,tsx}",
-    "./components/**/*.{js,ts,jsx,tsx}",
+    path.join(hubDir, "app/**/*.{js,ts,jsx,tsx,mdx}"),
+    path.join(hubDir, "components/**/*.{js,ts,jsx,tsx,mdx}"),
+    path.join(hubDir, "hooks/**/*.{js,ts,jsx,tsx}"),
+    path.join(hubDir, "lib/**/*.{js,ts,jsx,tsx}"),
   ],
   theme: {
     extend: {
@@ -16,10 +22,13 @@ module.exports = {
           DEFAULT: "rgba(255,255,255,0.1)",
           light: "rgba(255,255,255,0.15)",
         },
-        accent: "#58a6ff",
-        success: "#3fb950",
-        danger: "#f85149",
-        warning: "#d29922",
+        accent: {
+          DEFAULT: "#58a6ff",
+          dim: "rgba(88,166,255,0.15)",
+        },
+        success: { DEFAULT: "#3fb950" },
+        danger: { DEFAULT: "#f85149" },
+        warning: { DEFAULT: "#d29922" },
       },
     },
   },

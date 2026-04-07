@@ -24,7 +24,8 @@ export class Connection {
   private connect(): void {
     if (this.destroyed) return;
 
-    const url = new URL(this.opts.hubUrl);
+    const base = this.opts.hubUrl.replace(/\/$/, "");
+    const url = new URL(`${base}/agent`);
     url.searchParams.set("token", this.opts.token);
     url.searchParams.set("nodeId", this.opts.nodeId);
 

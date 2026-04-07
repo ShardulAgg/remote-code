@@ -1,6 +1,27 @@
 #!/usr/bin/env node
 import os from "os";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import { AgentHello, HubToAgentMessage } from "@remote-code/protocol";
+
+/**
+ * Get or create a stable node ID that persists across restarts.
+ * Stored in ~/.remote-code-agent/node-id
+ */
+function getStableNodeId(): string {
+  const configDir = path.join(os.homedir(), ".remote-code-agent");
+  const idFile = path.join(configDir, "node-id");
+  try {
+    return fs.readFileSync(idFile, "utf-8").trim();
+  } catch {
+    // First run — generate and persist
+    const id = `${os.hostname()}-${crypto.randomBytes(4).toString("hex")}`;
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(idFile, id);
+    return id;
+  }
+}
 import { Connection } from "./connection.js";
 import { PtyManager } from "./pty-manager.js";
 import { getStats } from "./stats.js";
@@ -32,7 +53,7 @@ const args = parseArgs(process.argv);
 const hubUrl = args["hub"];
 const token = args["token"];
 const name = args["name"] ?? os.hostname();
-const nodeId = args["id"] ?? `${os.hostname()}-${process.pid}`;
+const nodeId = args["id"] ?? getStableNodeId();
 
 if (!hubUrl || !token) {
   console.error("Usage: remote-code-agent --hub <ws://...> --token <token> [--name <name>] [--id <nodeId>]");

@@ -10,9 +10,11 @@ class WsClient {
   private handlers: Set<MessageHandler> = new Set();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connected = false;
+  private authenticated = false;
 
   connect(token: string): void {
     this.token = token;
+    this.authenticated = false;
     this.openConnection();
   }
 
@@ -46,12 +48,28 @@ class WsClient {
       } catch {
         return;
       }
+
+      // Track auth state
+      if (msg.type === "auth-result") {
+        if (msg.success) {
+          this.authenticated = true;
+        } else {
+          // Bad token — stop reconnecting and clear it
+          this.authenticated = false;
+          this.token = null;
+          localStorage.removeItem("rc-token");
+        }
+      }
+
       this.handlers.forEach((h) => h(msg));
     };
 
     ws.onclose = () => {
       this.connected = false;
-      this.scheduleReconnect();
+      // Only reconnect if we have a valid token (auth didn't fail)
+      if (this.token) {
+        this.scheduleReconnect();
+      }
     };
 
     ws.onerror = () => {
@@ -84,6 +102,7 @@ class WsClient {
 
   disconnect(): void {
     this.token = null;
+    this.authenticated = false;
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -99,6 +118,18 @@ class WsClient {
   isConnected(): boolean {
     return this.connected;
   }
+
+  isAuthenticated(): boolean {
+    return this.authenticated;
+  }
 }
 
 export const wsClient = new WsClient();
+
+// Auto-connect if token exists in localStorage
+if (typeof window !== "undefined") {
+  const saved = localStorage.getItem("rc-token");
+  if (saved) {
+    wsClient.connect(saved);
+  }
+}

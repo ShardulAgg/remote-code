@@ -98,7 +98,7 @@ export function createSession(info: {
   const db = getDb();
   const now = Date.now();
   db.prepare(`
-    INSERT INTO sessions (session_id, node_id, cwd, created_at, last_active, status)
+    INSERT OR IGNORE INTO sessions (session_id, node_id, cwd, created_at, last_active, status)
     VALUES (@sessionId, @nodeId, @cwd, @now, @now, 'active')
   `).run({ ...info, now });
   // Update active session count

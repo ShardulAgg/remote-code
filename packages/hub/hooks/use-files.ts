@@ -67,8 +67,9 @@ export function useFiles(nodeId: string) {
     setLoading(true);
     try {
       const result = await sendFsRequest(nodeId, "list", path);
-      const data = result as ListResponseData;
-      const mapped: FileEntry[] = (data.entries ?? []).map((e) => ({
+      // Agent returns the array directly, not wrapped in { entries: [...] }
+      const rawEntries = Array.isArray(result) ? result : (result as ListResponseData).entries ?? [];
+      const mapped: FileEntry[] = rawEntries.map((e: any) => ({
         name: e.name,
         path: e.path,
         isDirectory: e.isDirectory,
