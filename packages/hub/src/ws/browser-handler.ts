@@ -8,6 +8,7 @@ import {
 } from "@remote-code/protocol";
 import { agentRegistry } from "./agent-registry.js";
 import * as terminalProxy from "./terminal-proxy.js";
+import { onSessionChange } from "./terminal-proxy.js";
 import * as fileProxy from "./file-proxy.js";
 import { findAuthToken } from "../db/queries.js";
 import { hashToken } from "../auth/tokens.js";
@@ -22,8 +23,8 @@ export function handleBrowserConnection(ws: WebSocket): void {
   // sessionId -> nodeId mapping for routing terminal messages
   const sessionNodeMap = new Map<string, string>();
 
-  // Unsubscribe from node changes when this browser disconnects
   let unsubscribeNodeChange: (() => void) | null = null;
+  let unsubscribeSessionChange: (() => void) | null = null;
 
   ws.on("message", (raw: Buffer | string) => {
     let msg: BrowserMessage;
@@ -97,6 +98,25 @@ export function handleBrowserConnection(ws: WebSocket): void {
             ws.send(encode({ type: "node-update", node }));
           }
         });
+
+        // Subscribe to session changes (create/close/restore)
+        if (unsubscribeSessionChange) unsubscribeSessionChange();
+        unsubscribeSessionChange = onSessionChange(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const sessions = terminalProxy.getActiveSessions();
+            ws.send(encode({
+              type: "session-list",
+              sessions: sessions.map(s => ({
+                sessionId: s.sessionId,
+                nodeId: s.nodeId,
+                cwd: "",
+                createdAt: 0,
+                lastActive: Date.now(),
+                status: "active" as const,
+              })),
+            }));
+          }
+        });
         break;
       }
 
@@ -156,7 +176,7 @@ export function handleBrowserConnection(ws: WebSocket): void {
 
   ws.on("close", () => {
     if (unsubscribeNodeChange) unsubscribeNodeChange();
-    // Detach rather than close sessions so they can be reattached
+    if (unsubscribeSessionChange) unsubscribeSessionChange();
     terminalProxy.detachBrowser(ws);
   });
 

@@ -1,4 +1,7 @@
-import { createServer, IncomingMessage } from "http";
+import { createServer as createHttpServer, IncomingMessage } from "http";
+import { createServer as createHttpsServer } from "https";
+import fs from "fs";
+import path from "path";
 import { parse } from "url";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
@@ -46,11 +49,24 @@ async function main(): Promise<void> {
   const agentWss = new WebSocketServer({ noServer: true });
   const browserWss = new WebSocketServer({ noServer: true });
 
-  // HTTP server
-  const httpServer = createServer((req, res) => {
+  // HTTP/HTTPS server
+  const certDir = path.join(__dirname, "certs");
+  const hasCerts = fs.existsSync(path.join(certDir, "key.pem")) && fs.existsSync(path.join(certDir, "cert.pem"));
+
+  const requestHandler = (req: any, res: any) => {
     const parsedUrl = parse(req.url ?? "/", true);
     handle(req, res, parsedUrl);
-  });
+  };
+
+  const httpServer = hasCerts
+    ? createHttpsServer(
+        {
+          key: fs.readFileSync(path.join(certDir, "key.pem")),
+          cert: fs.readFileSync(path.join(certDir, "cert.pem")),
+        },
+        requestHandler
+      )
+    : createHttpServer(requestHandler);
 
   // Handle WebSocket upgrades
   httpServer.on("upgrade", (req: IncomingMessage, socket, head) => {
@@ -121,8 +137,11 @@ async function main(): Promise<void> {
     handleBrowserConnection(ws);
   });
 
-  httpServer.listen(PORT, () => {
-    console.log(`Hub server listening on http://localhost:${PORT}`);
+  const HOST = process.env.HOST ?? "0.0.0.0";
+  const protocol = hasCerts ? "https" : "http";
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`Hub server listening on ${protocol}://${HOST}:${PORT}`);
+    if (hasCerts) console.log("TLS enabled (self-signed certificate)");
   });
 }
 

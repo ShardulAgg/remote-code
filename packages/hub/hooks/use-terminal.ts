@@ -23,12 +23,15 @@ function fromBase64(b64: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-export function useTerminal(nodeId: string, existingSessionId?: string) {
+export function useTerminal(
+  nodeId: string,
+  existingSessionId?: string,
+  onSessionClosed?: (sessionId: string) => void
+) {
   const [sessionId] = useState<string>(() => existingSessionId ?? uuid());
   const cleanupRef = useRef<(() => void) | null>(null);
 
   function connect(terminal: Terminal, options: ConnectOptions = {}): () => void {
-    // Send open-terminal to hub
     wsClient.send({
       type: "open-terminal",
       nodeId,
@@ -39,7 +42,6 @@ export function useTerminal(nodeId: string, existingSessionId?: string) {
       ...(options.command ? { command: options.command } : {}),
     });
 
-    // Handle user input -> hub
     const dataDisposable = terminal.onData((data) => {
       wsClient.send({
         type: "terminal-input",
@@ -48,7 +50,6 @@ export function useTerminal(nodeId: string, existingSessionId?: string) {
       });
     });
 
-    // Handle terminal resize -> hub
     const resizeDisposable = terminal.onResize(({ cols, rows }) => {
       wsClient.send({
         type: "terminal-resize",
@@ -58,12 +59,14 @@ export function useTerminal(nodeId: string, existingSessionId?: string) {
       });
     });
 
-    // Handle messages from hub -> terminal
     const unsubscribe = wsClient.onMessage((msg) => {
       if (msg.type === "terminal-data" && msg.sessionId === sessionId) {
         terminal.write(fromBase64(msg.data));
       } else if (msg.type === "terminal-closed" && msg.sessionId === sessionId) {
-        terminal.write("\r\n[Session ended]\r\n");
+        terminal.write("\r\n\x1b[90m[Session ended]\x1b[0m\r\n");
+        if (onSessionClosed) {
+          onSessionClosed(sessionId);
+        }
       }
     });
 

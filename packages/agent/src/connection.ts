@@ -29,7 +29,9 @@ export class Connection {
     url.searchParams.set("token", this.opts.token);
     url.searchParams.set("nodeId", this.opts.nodeId);
 
-    const ws = new WebSocket(url.toString());
+    const ws = new WebSocket(url.toString(), {
+      rejectUnauthorized: false, // allow self-signed certs
+    });
     this.ws = ws;
 
     ws.on("open", () => {

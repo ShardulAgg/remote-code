@@ -13,22 +13,31 @@ interface NodeCardProps {
 
 export function NodeCard({ node, sessions = [] }: NodeCardProps) {
   const router = useRouter();
+  const isOnline = node.status === "online";
 
-  function openTerminal() {
+  function openAllSessions() {
     router.push(`/terminal?node=${node.nodeId}`);
   }
 
-  function reconnectSession(sessionId: string) {
+  function openSession(sessionId: string) {
     router.push(`/terminal?node=${node.nodeId}&session=${sessionId}`);
   }
 
+  function newSession() {
+    router.push(`/terminal?node=${node.nodeId}&new=1`);
+  }
+
+  function newClaudeSession() {
+    router.push(`/terminal?node=${node.nodeId}&new=1&command=claude`);
+  }
+
   return (
-    <div className="bg-surface-light border border-border rounded-lg p-4 flex flex-col gap-4">
+    <div className="bg-surface-light border border-border rounded-lg p-4 flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <h3 className="font-semibold text-white truncate">{node.name}</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{node.hostname}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{node.hostname}</p>
         </div>
         <StatusBadge status={node.status} />
       </div>
@@ -41,7 +50,7 @@ export function NodeCard({ node, sessions = [] }: NodeCardProps) {
       </div>
 
       {/* Stats */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-1.5">
         <StatsBar label="CPU" used={node.cpu} total={100} />
         <StatsBar label="Mem" used={node.memUsed} total={node.memTotal} />
         <StatsBar label="Disk" used={node.diskUsed} total={node.diskTotal} />
@@ -50,17 +59,33 @@ export function NodeCard({ node, sessions = [] }: NodeCardProps) {
       {/* Active sessions */}
       {sessions.length > 0 && (
         <div className="border-t border-border pt-3">
-          <p className="text-xs text-gray-500 mb-2">
-            {sessions.length} active session{sessions.length !== 1 ? "s" : ""}
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-gray-500">
+              {sessions.length} session{sessions.length !== 1 ? "s" : ""}
+            </p>
+            {sessions.length > 1 && (
+              <button
+                onClick={openAllSessions}
+                className="text-xs text-accent hover:underline"
+              >
+                Open all
+              </button>
+            )}
+          </div>
           <div className="flex flex-col gap-1">
-            {sessions.map((s) => (
+            {sessions.map((s, i) => (
               <button
                 key={s.sessionId}
-                onClick={() => reconnectSession(s.sessionId)}
-                className="text-xs text-left px-2 py-1 rounded bg-surface-lighter text-accent hover:bg-accent/20 transition-colors truncate"
+                onClick={() => openSession(s.sessionId)}
+                className="flex items-center gap-2 text-xs text-left px-2.5 py-1.5 rounded bg-surface-lighter hover:bg-accent/20 transition-colors group"
               >
-                Reconnect {s.sessionId.slice(0, 8)}...
+                <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0" />
+                <span className="text-gray-300 group-hover:text-accent truncate">
+                  Session {i + 1}
+                </span>
+                <span className="text-gray-600 ml-auto font-mono text-[10px]">
+                  {s.sessionId.slice(0, 8)}
+                </span>
               </button>
             ))}
           </div>
@@ -68,18 +93,25 @@ export function NodeCard({ node, sessions = [] }: NodeCardProps) {
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 mt-auto">
+      <div className="flex gap-2 mt-auto pt-1">
         <button
-          onClick={openTerminal}
-          disabled={node.status === "offline"}
-          className="flex-1 px-3 py-1.5 text-sm rounded bg-accent text-white hover:bg-accent/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          onClick={newClaudeSession}
+          disabled={!isOnline}
+          className="flex-1 px-3 py-1.5 text-sm font-medium rounded bg-success/20 text-success hover:bg-success/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          Claude Code
+        </button>
+        <button
+          onClick={newSession}
+          disabled={!isOnline}
+          className="flex-1 px-3 py-1.5 text-sm rounded bg-surface-lighter border border-border text-gray-300 hover:bg-accent/20 hover:text-accent hover:border-accent/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           Terminal
         </button>
         <button
           onClick={() => router.push(`/files/${node.nodeId}`)}
-          disabled={node.status === "offline"}
-          className="flex-1 px-3 py-1.5 text-sm rounded bg-surface-lighter border border-border text-gray-300 hover:bg-accent hover:text-white hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          disabled={!isOnline}
+          className="px-3 py-1.5 text-sm rounded bg-surface-lighter border border-border text-gray-400 hover:text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           Files
         </button>

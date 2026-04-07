@@ -21,6 +21,22 @@ interface TerminalSession {
 // sessionId -> session info
 const sessions = new Map<string, TerminalSession>();
 
+// Session change listeners
+type SessionChangeCallback = () => void;
+const sessionChangeCallbacks: SessionChangeCallback[] = [];
+
+export function onSessionChange(cb: SessionChangeCallback): () => void {
+  sessionChangeCallbacks.push(cb);
+  return () => {
+    const idx = sessionChangeCallbacks.indexOf(cb);
+    if (idx >= 0) sessionChangeCallbacks.splice(idx, 1);
+  };
+}
+
+function notifySessionChange(): void {
+  for (const cb of sessionChangeCallbacks) cb();
+}
+
 /**
  * Open a terminal session. If the session already exists (detached),
  * reattach and replay the scrollback buffer instead of spawning a new PTY.
@@ -70,6 +86,7 @@ export function openTerminal(
     scrollbackSize: 0,
   };
   sessions.set(sessionId, session);
+  notifySessionChange();
 
   // Persist session in DB
   createSession({ sessionId, nodeId, cwd: cwd ?? "" });
@@ -149,6 +166,7 @@ export function handlePtyExit(sessionId: string, exitCode: number): void {
   setSessionStatus(sessionId, "closed");
   agentRegistry.removeSession(session.nodeId, sessionId);
   sessions.delete(sessionId);
+  notifySessionChange();
 }
 
 /**
@@ -192,6 +210,7 @@ export function close(sessionId: string): void {
   setSessionStatus(sessionId, "closed");
   agentRegistry.removeSession(session.nodeId, sessionId);
   sessions.delete(sessionId);
+  notifySessionChange();
 }
 
 /**
@@ -246,6 +265,7 @@ export function restoreSession(sessionId: string, nodeId: string): void {
     scrollback: [],
     scrollbackSize: 0,
   });
+  notifySessionChange();
 }
 
 /**
