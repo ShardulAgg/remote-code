@@ -1,0 +1,18 @@
+[Unit]
+Description=Remote Code Agent
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nobody
+WorkingDirectory=/opt/remote-code-agent
+EnvironmentFile=/opt/remote-code-agent/.env
+ExecStart=/usr/bin/node /opt/remote-code-agent/dist/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
