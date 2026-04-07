@@ -1,0 +1,35 @@
+{
+  "name": "@remote-code/hub",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "dev": "tsx server.ts",
+    "start": "NODE_ENV=production tsx server.ts"
+  },
+  "dependencies": {
+    "@remote-code/protocol": "*",
+    "better-sqlite3": "^11.0.0",
+    "next": "^14.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "ws": "^8.16.0",
+    "@xterm/xterm": "^5.4.0",
+    "@xterm/addon-fit": "^0.9.0",
+    "@xterm/addon-webgl": "^0.17.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/uuid": "^9.0.7",
+    "@types/ws": "^8.5.10",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}

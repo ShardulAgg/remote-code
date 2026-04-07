@@ -1,0 +1,14 @@
+{
+  "name": "remote-code",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:protocol": "npm run build -w packages/protocol",
+    "build:agent": "npm run build -w packages/agent",
+    "dev:hub": "npm run dev -w packages/hub",
+    "dev:agent": "npm run dev -w packages/agent"
+  }
+}
