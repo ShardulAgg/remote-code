@@ -74,6 +74,22 @@ export function handleBrowserConnection(ws: WebSocket): void {
         const nodes = getAllNodes();
         ws.send(encode({ type: "node-list", nodes }));
 
+        // Send active sessions so browser can reconnect to them
+        const activeSessions = terminalProxy.getActiveSessions();
+        if (activeSessions.length > 0) {
+          ws.send(encode({
+            type: "session-list",
+            sessions: activeSessions.map(s => ({
+              sessionId: s.sessionId,
+              nodeId: s.nodeId,
+              cwd: "",
+              createdAt: 0,
+              lastActive: Date.now(),
+              status: "active" as const,
+            })),
+          }));
+        }
+
         // Subscribe to future node changes
         if (unsubscribeNodeChange) unsubscribeNodeChange();
         unsubscribeNodeChange = agentRegistry.onNodeChange((node: NodeInfo) => {

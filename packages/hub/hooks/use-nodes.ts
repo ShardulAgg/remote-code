@@ -1,38 +1,41 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { NodeInfo, NodeList, NodeUpdate } from "@remote-code/protocol";
+import { NodeInfo, NodeList, NodeUpdate, SessionInfo } from "@remote-code/protocol";
 import { wsClient } from "../lib/ws-client";
 
-export function useNodes(): NodeInfo[] {
+export interface ActiveSession {
+  sessionId: string;
+  nodeId: string;
+}
+
+export function useNodes() {
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
 
   useEffect(() => {
-    // Subscribe to node list updates
     wsClient.send({ type: "subscribe-nodes" });
 
     const unsubscribe = wsClient.onMessage((msg) => {
       if (msg.type === "node-list") {
-        const nodeList = msg as NodeList;
-        setNodes(nodeList.nodes);
+        setNodes((msg as NodeList).nodes);
       } else if (msg.type === "node-update") {
         const update = msg as NodeUpdate;
         setNodes((prev) => {
           const idx = prev.findIndex((n) => n.nodeId === update.node.nodeId);
-          if (idx === -1) {
-            return [...prev, update.node];
-          }
+          if (idx === -1) return [...prev, update.node];
           const next = [...prev];
           next[idx] = update.node;
           return next;
         });
+      } else if (msg.type === "session-list") {
+        const list = msg as { type: "session-list"; sessions: SessionInfo[] };
+        setSessions(list.sessions.map(s => ({ sessionId: s.sessionId, nodeId: s.nodeId })));
       }
     });
 
-    return () => {
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
-  return nodes;
+  return { nodes, sessions };
 }

@@ -133,13 +133,21 @@ function handleAgentMessage(
 ): void {
   switch (msg.type) {
     case "agent-hello": {
-      const { nodeId, name, os, arch, hostname } = msg;
-      console.log(`[agent] Node connected: ${nodeId} (${name} @ ${hostname})`);
+      const { nodeId, name, os, arch, hostname, activeSessions } = msg;
+      console.log(`[agent] Node connected: ${nodeId} (${name} @ ${hostname}), ${activeSessions?.length ?? 0} active sessions`);
 
       agentRegistry.register(nodeId, ws);
       upsertNode({ nodeId, name, os, arch, hostname });
       agentRegistry.notifyNodeChange(nodeId);
       onNodeId(nodeId);
+
+      // Restore sessions the agent reports as still alive
+      if (activeSessions && activeSessions.length > 0) {
+        for (const sessionId of activeSessions) {
+          terminalProxy.restoreSession(sessionId, nodeId);
+        }
+        console.log(`[agent] Restored ${activeSessions.length} session(s) for ${nodeId}`);
+      }
 
       // Acknowledge
       ws.send(encode({ type: "auth-result", success: true }));

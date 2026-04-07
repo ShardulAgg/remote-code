@@ -7,21 +7,28 @@ import { useNodes } from "../hooks/use-nodes";
 import { wsClient } from "../lib/ws-client";
 
 function Dashboard() {
-  const nodes = useNodes();
+  const { nodes, sessions } = useNodes();
   const onlineCount = nodes.filter((n) => n.status === "online").length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 w-full">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Nodes</h1>
-        <span className="text-sm text-gray-400">
-          <span className="text-success font-medium">{onlineCount}</span>
-          {" / "}
-          <span>{nodes.length}</span>
-          {" online"}
-        </span>
+        <div className="flex items-center gap-4">
+          {sessions.length > 0 && (
+            <span className="text-sm text-accent">
+              {sessions.length} active session{sessions.length !== 1 ? "s" : ""}
+            </span>
+          )}
+          <span className="text-sm text-gray-400">
+            <span className="text-success font-medium">{onlineCount}</span>
+            {" / "}
+            <span>{nodes.length}</span>
+            {" online"}
+          </span>
+        </div>
       </div>
-      <NodeGrid nodes={nodes} />
+      <NodeGrid nodes={nodes} sessions={sessions} />
     </div>
   );
 }
@@ -33,7 +40,6 @@ export default function HomePage() {
   useEffect(() => {
     const saved = localStorage.getItem("rc-token");
     if (saved) {
-      // Auto-connect with saved token and wait for auth-result
       const unsubscribe = wsClient.onMessage((msg) => {
         if (msg.type === "auth-result") {
           unsubscribe();
@@ -48,7 +54,6 @@ export default function HomePage() {
 
       wsClient.connect(saved);
 
-      // Fallback: if no auth-result within 5s, show login form
       const timer = setTimeout(() => {
         unsubscribe();
         setReady(true);
@@ -63,20 +68,16 @@ export default function HomePage() {
     }
   }, []);
 
-  const handleAuth = (token: string) => {
-    setAuthed(true);
-  };
-
   if (!ready) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-gray-500 text-sm">Connecting…</p>
+        <p className="text-gray-500 text-sm">Connecting...</p>
       </div>
     );
   }
 
   if (!authed) {
-    return <LoginForm onAuth={handleAuth} />;
+    return <LoginForm onAuth={() => setAuthed(true)} />;
   }
 
   return <Dashboard />;

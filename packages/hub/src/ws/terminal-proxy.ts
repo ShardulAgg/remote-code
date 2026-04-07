@@ -230,3 +230,33 @@ export function reattach(sessionId: string, browserWs: WebSocket): void {
 export function getSessionNodeId(sessionId: string): string | undefined {
   return sessions.get(sessionId)?.nodeId;
 }
+
+/**
+ * Restore a session that the agent reports as still alive.
+ * Creates an entry in the hub's session map without a browser attached.
+ * This allows browsers to reconnect to it later.
+ */
+export function restoreSession(sessionId: string, nodeId: string): void {
+  if (sessions.has(sessionId)) return; // already tracked
+
+  sessions.set(sessionId, {
+    sessionId,
+    nodeId,
+    browserWs: null,
+    scrollback: [],
+    scrollbackSize: 0,
+  });
+}
+
+/**
+ * Get all active/detached sessions, optionally filtered by nodeId.
+ */
+export function getActiveSessions(nodeId?: string): Array<{ sessionId: string; nodeId: string }> {
+  const result: Array<{ sessionId: string; nodeId: string }> = [];
+  for (const [, session] of sessions) {
+    if (!nodeId || session.nodeId === nodeId) {
+      result.push({ sessionId: session.sessionId, nodeId: session.nodeId });
+    }
+  }
+  return result;
+}

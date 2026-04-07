@@ -8,6 +8,7 @@ export interface AgentHello {
   os: string;
   arch: string;
   hostname: string;
+  activeSessions?: string[]; // sessionIds of PTYs still alive on this node
 }
 
 export interface PtyData {

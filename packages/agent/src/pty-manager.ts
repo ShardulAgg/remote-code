@@ -88,6 +88,31 @@ export class PtyManager {
     return Array.from(this.sessions.keys());
   }
 
+  /**
+   * Re-attach data/exit listeners to an existing session.
+   * Used after agent reconnects to hub — PTY is alive but callbacks point to old connection.
+   */
+  reattach(
+    sessionId: string,
+    onData: (data: string) => void,
+    onExit: (exitCode: number) => void
+  ): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+
+    session.pty.onData((data: string) => {
+      const b64 = Buffer.from(data, "utf8").toString("base64");
+      onData(b64);
+    });
+
+    session.pty.onExit(({ exitCode }: { exitCode: number }) => {
+      this.sessions.delete(sessionId);
+      onExit(exitCode ?? 0);
+    });
+
+    return true;
+  }
+
   killAll(): void {
     for (const id of this.sessions.keys()) {
       this.kill(id);

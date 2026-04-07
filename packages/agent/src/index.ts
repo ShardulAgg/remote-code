@@ -73,7 +73,7 @@ const connection = new Connection({
   onConnected() {
     console.log("[agent] Connected to hub");
 
-    // Send hello
+    // Send hello with active sessions
     const hello: AgentHello = {
       type: "agent-hello",
       nodeId,
@@ -82,8 +82,18 @@ const connection = new Connection({
       os: `${os.type()} ${os.release()}`,
       arch: os.arch(),
       hostname: os.hostname(),
+      activeSessions: ptyManager.listSessions(),
     };
     connection.send(hello);
+
+    // Re-wire existing PTY sessions to the new connection
+    for (const sid of ptyManager.listSessions()) {
+      ptyManager.reattach(
+        sid,
+        (data) => connection.send({ type: "pty-data", sessionId: sid, data }),
+        (exitCode) => connection.send({ type: "pty-exit", sessionId: sid, exitCode })
+      );
+    }
 
     // Start sending stats every 5 seconds
     statsInterval = setInterval(() => {

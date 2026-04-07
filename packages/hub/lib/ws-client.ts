@@ -122,6 +122,33 @@ class WsClient {
   isAuthenticated(): boolean {
     return this.authenticated;
   }
+
+  /**
+   * Wait until the WebSocket is authenticated. Resolves immediately if already authed.
+   * Rejects after timeout if auth doesn't complete.
+   */
+  waitForAuth(timeoutMs: number = 5000): Promise<void> {
+    if (this.authenticated) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const unsub = this.onMessage((msg) => {
+        if (msg.type === "auth-result") {
+          unsub();
+          clearTimeout(timer);
+          if ((msg as any).success) {
+            resolve();
+          } else {
+            reject(new Error("Auth failed"));
+          }
+        }
+      });
+      const timer = setTimeout(() => {
+        unsub();
+        // If we're authed by now (race), resolve
+        if (this.authenticated) resolve();
+        else reject(new Error("Auth timeout"));
+      }, timeoutMs);
+    });
+  }
 }
 
 export const wsClient = new WsClient();
