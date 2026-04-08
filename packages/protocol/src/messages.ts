@@ -120,6 +120,12 @@ export interface BrowserFsRequest {
   data?: string;
 }
 
+export interface RenameSession {
+  type: "rename-session";
+  sessionId: string;
+  label: string;
+}
+
 export interface SubscribeNodes {
   type: "subscribe-nodes";
 }
@@ -191,6 +197,7 @@ export interface SessionList {
 export interface SessionInfo {
   sessionId: string;
   nodeId: string;
+  label: string;
   cwd: string;
   createdAt: number;
   lastActive: number;
@@ -207,7 +214,7 @@ export type HubToAgentMessage =
 
 export type BrowserMessage =
   | BrowserAuth | OpenTerminal | TerminalInput | TerminalResize
-  | CloseTerminal | BrowserFsRequest | SubscribeNodes;
+  | CloseTerminal | BrowserFsRequest | RenameSession | SubscribeNodes;
 
 export type HubToBrowserMessage =
   | AuthResult | NodeList | NodeUpdate | TerminalOpened | TerminalData

@@ -11,25 +11,35 @@ function Dashboard() {
   const onlineCount = nodes.filter((n) => n.status === "online").length;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 w-full">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">Nodes</h1>
-        <div className="flex items-center gap-4">
-          {sessions.length > 0 && (
-            <span className="text-sm text-accent">
-              {sessions.length} active session{sessions.length !== 1 ? "s" : ""}
-            </span>
-          )}
-          <span className="text-sm text-gray-400">
-            <span className="text-success font-medium">{onlineCount}</span>
-            {" / "}
-            <span>{nodes.length}</span>
-            {" online"}
-          </span>
+    <>
+      <nav className="border-b border-border bg-surface-light shrink-0">
+        <div className="max-w-7xl mx-auto px-4 h-12 flex items-center gap-6">
+          <span className="text-white font-semibold">Remote Code</span>
+          <a href="/terminal" className="text-gray-400 text-sm hover:text-white transition-colors">
+            Terminals
+          </a>
         </div>
+      </nav>
+      <div className="max-w-7xl mx-auto px-4 py-6 w-full flex-1 overflow-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-white">Nodes</h1>
+          <div className="flex items-center gap-4">
+            {sessions.length > 0 && (
+              <span className="text-sm text-accent">
+                {sessions.length} active session{sessions.length !== 1 ? "s" : ""}
+              </span>
+            )}
+            <span className="text-sm text-gray-400">
+              <span className="text-success font-medium">{onlineCount}</span>
+              {" / "}
+              <span>{nodes.length}</span>
+              {" online"}
+            </span>
+          </div>
+        </div>
+        <NodeGrid nodes={nodes} sessions={sessions} />
       </div>
-      <NodeGrid nodes={nodes} sessions={sessions} />
-    </div>
+    </>
   );
 }
 

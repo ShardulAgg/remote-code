@@ -94,13 +94,14 @@ export function createSession(info: {
   sessionId: string;
   nodeId: string;
   cwd: string;
+  label?: string;
 }): void {
   const db = getDb();
   const now = Date.now();
   db.prepare(`
-    INSERT OR IGNORE INTO sessions (session_id, node_id, cwd, created_at, last_active, status)
-    VALUES (@sessionId, @nodeId, @cwd, @now, @now, 'active')
-  `).run({ ...info, now });
+    INSERT OR IGNORE INTO sessions (session_id, node_id, label, cwd, created_at, last_active, status)
+    VALUES (@sessionId, @nodeId, @label, @cwd, @now, @now, 'active')
+  `).run({ ...info, label: info.label ?? "", now });
   // Update active session count
   _updateActiveSessionCount(info.nodeId);
 }
@@ -130,6 +131,11 @@ export function setSessionStatus(
   }
 }
 
+export function updateSessionLabel(sessionId: string, label: string): void {
+  const db = getDb();
+  db.prepare(`UPDATE sessions SET label = @label WHERE session_id = @sessionId`).run({ sessionId, label });
+}
+
 export function getActiveSessions(): SessionInfo[] {
   const db = getDb();
   const rows = db
@@ -142,6 +148,7 @@ function rowToSessionInfo(row: Record<string, unknown>): SessionInfo {
   return {
     sessionId: row.session_id as string,
     nodeId: row.node_id as string,
+    label: (row.label as string) || "",
     cwd: row.cwd as string,
     createdAt: row.created_at as number,
     lastActive: row.last_active as number,

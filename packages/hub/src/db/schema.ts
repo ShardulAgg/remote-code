@@ -22,11 +22,16 @@ export const CREATE_SESSIONS_TABLE = `
   CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
     node_id TEXT NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
     cwd TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL,
     last_active INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'active'
   )
+`;
+
+export const MIGRATE_SESSIONS_ADD_LABEL = `
+  ALTER TABLE sessions ADD COLUMN label TEXT NOT NULL DEFAULT ''
 `;
 
 export const CREATE_AUTH_TOKENS_TABLE = `

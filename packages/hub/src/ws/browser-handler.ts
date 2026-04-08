@@ -10,9 +10,25 @@ import { agentRegistry } from "./agent-registry.js";
 import * as terminalProxy from "./terminal-proxy.js";
 import { onSessionChange } from "./terminal-proxy.js";
 import * as fileProxy from "./file-proxy.js";
-import { findAuthToken } from "../db/queries.js";
+import { findAuthToken, updateSessionLabel } from "../db/queries.js";
 import { hashToken } from "../auth/tokens.js";
 import { getAllNodes } from "../db/queries.js";
+import { getActiveSessions as getDbActiveSessions } from "../db/queries.js";
+
+function buildSessionList() {
+  const activeSessions = terminalProxy.getActiveSessions();
+  const dbSessions = getDbActiveSessions();
+  const labelMap = new Map(dbSessions.map(s => [s.sessionId, s.label]));
+  return activeSessions.map(s => ({
+    sessionId: s.sessionId,
+    nodeId: s.nodeId,
+    label: labelMap.get(s.sessionId) ?? "",
+    cwd: "",
+    createdAt: 0,
+    lastActive: Date.now(),
+    status: "active" as const,
+  }));
+}
 
 /**
  * Handle a browser WebSocket connection.
@@ -76,19 +92,9 @@ export function handleBrowserConnection(ws: WebSocket): void {
         ws.send(encode({ type: "node-list", nodes }));
 
         // Send active sessions so browser can reconnect to them
-        const activeSessions = terminalProxy.getActiveSessions();
-        if (activeSessions.length > 0) {
-          ws.send(encode({
-            type: "session-list",
-            sessions: activeSessions.map(s => ({
-              sessionId: s.sessionId,
-              nodeId: s.nodeId,
-              cwd: "",
-              createdAt: 0,
-              lastActive: Date.now(),
-              status: "active" as const,
-            })),
-          }));
+        const sessionList = buildSessionList();
+        if (sessionList.length > 0) {
+          ws.send(encode({ type: "session-list", sessions: sessionList }));
         }
 
         // Subscribe to future node changes
@@ -103,18 +109,7 @@ export function handleBrowserConnection(ws: WebSocket): void {
         if (unsubscribeSessionChange) unsubscribeSessionChange();
         unsubscribeSessionChange = onSessionChange(() => {
           if (ws.readyState === WebSocket.OPEN) {
-            const sessions = terminalProxy.getActiveSessions();
-            ws.send(encode({
-              type: "session-list",
-              sessions: sessions.map(s => ({
-                sessionId: s.sessionId,
-                nodeId: s.nodeId,
-                cwd: "",
-                createdAt: 0,
-                lastActive: Date.now(),
-                status: "active" as const,
-              })),
-            }));
+            ws.send(encode({ type: "session-list", sessions: buildSessionList() }));
           }
         });
         break;
@@ -165,6 +160,11 @@ export function handleBrowserConnection(ws: WebSocket): void {
           path: msg.path,
           data: msg.data,
         });
+        break;
+      }
+
+      case "rename-session": {
+        updateSessionLabel(msg.sessionId, msg.label);
         break;
       }
 
