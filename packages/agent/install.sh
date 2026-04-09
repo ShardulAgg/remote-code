@@ -76,8 +76,12 @@ echo "Installing remote-code-agent to $AGENT_DIR ..."
 mkdir -p "$AGENT_DIR"
 
 # Determine source: if running from within the repo, copy files; otherwise clone
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "$SCRIPT_DIR/package.json" ]]; then
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+fi
+
+if [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/package.json" ]]; then
   echo "Copying agent files from $SCRIPT_DIR ..."
   cp -r "$SCRIPT_DIR/." "$AGENT_DIR/"
 else
@@ -86,15 +90,20 @@ else
     echo "Error: git is not installed. Install git or run this script from the agent source directory." >&2
     exit 1
   fi
-  git clone --depth=1 https://github.com/your-org/remote-code.git "$AGENT_DIR/repo"
+  git clone --depth=1 https://github.com/ShardulAgg/remote-code.git "$AGENT_DIR/repo"
   cp -r "$AGENT_DIR/repo/packages/agent/." "$AGENT_DIR/"
+  # Also copy protocol package (dependency)
+  mkdir -p "$AGENT_DIR/node_modules/@remote-code"
+  cp -r "$AGENT_DIR/repo/packages/protocol" "$AGENT_DIR/node_modules/@remote-code/protocol"
   rm -rf "$AGENT_DIR/repo"
 fi
 
-# Install dependencies
+# Install dependencies and build
 echo "Installing npm dependencies ..."
 cd "$AGENT_DIR"
-npm install --production --ignore-scripts
+npm install --ignore-scripts
+echo "Building agent ..."
+npx tsc 2>/dev/null || true
 
 # Write environment config
 cat > "$AGENT_DIR/.env" <<EOF
