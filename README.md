@@ -6,6 +6,8 @@ Remote Code is an open-source terminal hub that lets you manage long-running ter
 
 ![Terminal workspace](docs/screenshots/workspace.png)
 
+![Dashboard](docs/screenshots/dashboard.png)
+
 ## Why
 
 Running Claude Code, Codex, or other AI coding agents on remote machines today means juggling SSH connections, tmux sessions, and terminal tabs. Remote Code gives you:
@@ -87,6 +89,8 @@ Full terminal access from your phone with:
 - Touch-optimized keyboard focus
 
 ![Mobile view](docs/screenshots/mobile.png)
+
+![Mobile toolbar](docs/screenshots/mobile-toolbar.png)
 
 ### Image paste
 
