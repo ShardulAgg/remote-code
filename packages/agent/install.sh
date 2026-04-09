@@ -102,8 +102,20 @@ fi
 echo "Installing npm dependencies ..."
 cd "$AGENT_DIR"
 npm install --ignore-scripts
+# Build protocol dependency first
+if [[ -d "$AGENT_DIR/node_modules/@remote-code/protocol" ]]; then
+  echo "Building protocol package ..."
+  cd "$AGENT_DIR/node_modules/@remote-code/protocol"
+  npx tsc 2>/dev/null || true
+  cd "$AGENT_DIR"
+fi
 echo "Building agent ..."
 npx tsc 2>/dev/null || true
+# If build failed, install tsx as fallback to run from source
+if [[ ! -f "$AGENT_DIR/dist/index.js" ]]; then
+  echo "TypeScript build failed, installing tsx for source execution ..."
+  npm install tsx
+fi
 
 # Write environment config
 cat > "$AGENT_DIR/.env" <<EOF
@@ -112,6 +124,13 @@ TOKEN=${TOKEN}
 NODE_NAME=${NODE_NAME}
 EOF
 chmod 600 "$AGENT_DIR/.env"
+
+# Determine the exec command
+if [[ -f "${AGENT_DIR}/dist/index.js" ]]; then
+  EXEC_CMD="$(command -v node) ${AGENT_DIR}/dist/index.js"
+else
+  EXEC_CMD="$(command -v npx) tsx ${AGENT_DIR}/src/index.ts"
+fi
 
 # Write systemd service
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -122,10 +141,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=nobody
 WorkingDirectory=${AGENT_DIR}
 EnvironmentFile=${AGENT_DIR}/.env
-ExecStart=$(command -v node) ${AGENT_DIR}/dist/index.js
+ExecStart=${EXEC_CMD}
 Restart=always
 RestartSec=5
 StandardOutput=journal
