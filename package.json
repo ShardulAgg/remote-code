@@ -10,5 +10,6 @@
     "build:agent": "npm run build -w packages/agent",
     "dev:hub": "npm run dev -w packages/hub",
     "dev:agent": "npm run dev -w packages/agent"
-  }
+  },
+  "version": "0.2.0"
 }
