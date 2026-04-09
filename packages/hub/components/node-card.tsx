@@ -121,29 +121,93 @@ export function NodeCard({ node, sessions = [] }: NodeCardProps) {
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 mt-auto pt-1">
+      {isOnline ? (
+        <div className="flex gap-2 mt-auto pt-1">
+          <button
+            onClick={newClaudeSession}
+            className="flex-1 px-3 py-1.5 text-sm font-medium rounded bg-success/20 text-success hover:bg-success/30 transition-colors"
+          >
+            Claude Code
+          </button>
+          <button
+            onClick={newSession}
+            className="flex-1 px-3 py-1.5 text-sm rounded bg-surface-lighter border border-border text-gray-300 hover:bg-accent/20 hover:text-accent hover:border-accent/30 transition-colors"
+          >
+            Terminal
+          </button>
+          <button
+            onClick={() => router.push(`/files/${node.nodeId}`)}
+            className="px-3 py-1.5 text-sm rounded bg-surface-lighter border border-border text-gray-400 hover:text-gray-300 transition-colors"
+          >
+            Files
+          </button>
+        </div>
+      ) : (
+        <OfflineActions nodeId={node.nodeId} nodeName={node.name} />
+      )}
+    </div>
+  );
+}
+
+function OfflineActions({ nodeId, nodeName }: { nodeId: string; nodeName: string }) {
+  const [showCommand, setShowCommand] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  const restartCmd = `~/.remote-code-agent/start.sh`;
+
+  function copy(text: string) {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function removeNode() {
+    if (!confirm(`Remove "${nodeName}" from the dashboard? The agent can reconnect anytime.`)) return;
+    setRemoving(true);
+    try {
+      await fetch("/api/nodes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodeId }),
+      });
+      window.location.reload();
+    } catch {
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 mt-auto pt-1">
+      <div className="flex gap-2">
         <button
-          onClick={newClaudeSession}
-          disabled={!isOnline}
-          className="flex-1 px-3 py-1.5 text-sm font-medium rounded bg-success/20 text-success hover:bg-success/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          onClick={() => setShowCommand(p => !p)}
+          className="flex-1 px-3 py-1.5 text-sm rounded bg-warning/20 text-warning hover:bg-warning/30 transition-colors"
         >
-          Claude Code
+          Reconnect
         </button>
         <button
-          onClick={newSession}
-          disabled={!isOnline}
-          className="flex-1 px-3 py-1.5 text-sm rounded bg-surface-lighter border border-border text-gray-300 hover:bg-accent/20 hover:text-accent hover:border-accent/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          onClick={removeNode}
+          disabled={removing}
+          className="px-3 py-1.5 text-sm rounded bg-surface-lighter border border-border text-gray-500 hover:text-danger hover:border-danger/30 disabled:opacity-50 transition-colors"
         >
-          Terminal
-        </button>
-        <button
-          onClick={() => router.push(`/files/${node.nodeId}`)}
-          disabled={!isOnline}
-          className="px-3 py-1.5 text-sm rounded bg-surface-lighter border border-border text-gray-400 hover:text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          Files
+          {removing ? "..." : "Remove"}
         </button>
       </div>
+      {showCommand && (
+        <div className="bg-surface border border-border rounded-lg p-2">
+          <p className="text-[10px] text-gray-500 mb-1">SSH into the machine and run:</p>
+          <div className="flex items-center gap-1">
+            <code className="text-[11px] text-gray-300 font-mono flex-1 break-all">{restartCmd}</code>
+            <button
+              onClick={() => copy(restartCmd)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-surface-lighter border border-border text-gray-500 hover:text-white shrink-0"
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

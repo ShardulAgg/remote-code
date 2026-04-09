@@ -39,5 +39,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ valid: !!row });
   }
 
+  if (body.action === "revoke") {
+    const label: string = body.label;
+    if (!label) return NextResponse.json({ error: "Missing label" }, { status: 400 });
+    const db = getDb();
+    const result = db.prepare("DELETE FROM auth_tokens WHERE label = ?").run(label);
+    db.close();
+    return NextResponse.json({ ok: true, deleted: result.changes });
+  }
+
+  if (body.action === "list") {
+    const db = getDb();
+    const tokens = db.prepare("SELECT id, label, created_at FROM auth_tokens").all();
+    db.close();
+    return NextResponse.json({ tokens });
+  }
+
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }
