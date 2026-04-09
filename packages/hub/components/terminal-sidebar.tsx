@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { NodeInfo } from "@remote-code/protocol";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { NodeInfo, FsTreeEntry } from "@remote-code/protocol";
 import { StatsBar } from "./stats-bar";
-import { useFiles, FileEntry } from "../hooks/use-files";
+import { wsClient } from "../lib/ws-client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,67 +81,236 @@ function SidebarEditableLabel({ value, onChange }: { value: string; onChange?: (
 }
 
 // ---------------------------------------------------------------------------
-// Mini file browser for sidebar
+// VS Code-style file tree
 // ---------------------------------------------------------------------------
 
 function SidebarFiles({ nodeId, onOpenTerminalAt }: { nodeId: string; onOpenTerminalAt?: (cwd: string) => void }) {
-  const { entries, currentPath, loading, listDir } = useFiles(nodeId);
-  const [initialized, setInitialized] = useState(false);
+  const [tree, setTree] = useState<FsTreeEntry[]>([]);
+  const [root, setRoot] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
+  // Request tree from hub
   useEffect(() => {
-    if (!initialized && nodeId) {
-      listDir("/");
-      setInitialized(true);
-    }
-  }, [nodeId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!nodeId) return;
+    setLoading(true);
+    wsClient.send({ type: "request-node-tree", nodeId });
 
-  function goUp() {
-    if (currentPath === "/" || currentPath === "") return;
-    const trimmed = currentPath.endsWith("/") ? currentPath.slice(0, -1) : currentPath;
-    const idx = trimmed.lastIndexOf("/");
-    listDir(idx <= 0 ? "/" : trimmed.slice(0, idx));
-  }
+    const unsub = wsClient.onMessage((msg) => {
+      if (msg.type === "node-fs-tree" && (msg as any).nodeId === nodeId) {
+        setTree((msg as any).entries);
+        setRoot((msg as any).root);
+        setLoading(false);
+      } else if (msg.type === "node-fs-tree-update" && (msg as any).nodeId === nodeId) {
+        // Apply incremental updates
+        setTree(prev => applyUpdates([...prev], (msg as any).changes));
+      }
+    });
+    return unsub;
+  }, [nodeId]);
 
-  const sorted = [...entries].sort((a, b) => {
-    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+  // Focus search on open
+  useEffect(() => {
+    if (searchOpen && searchRef.current) searchRef.current.focus();
+  }, [searchOpen]);
 
   if (!nodeId) return <div className="px-2 py-3 text-[11px] text-gray-600">Select an agent</div>;
 
+  // Flatten tree for search
+  const searchResults = searchQuery.length > 1 ? flatSearch(tree, searchQuery.toLowerCase()) : null;
+
   return (
     <div className="flex flex-col min-h-0">
-      {/* Path */}
+      {/* Header with search toggle */}
       <div className="flex items-center gap-1 px-2 py-1 shrink-0">
-        <button onClick={goUp} disabled={currentPath === "/"} className="text-[11px] text-gray-600 hover:text-white disabled:opacity-30 px-0.5">..</button>
-        <span className="text-[10px] text-gray-500 font-mono truncate flex-1">{currentPath}</span>
+        <span className="text-[10px] text-gray-500 font-mono truncate flex-1">{root || "/"}</span>
+        <button
+          onClick={() => { setSearchOpen(p => !p); setSearchQuery(""); }}
+          className={`text-[10px] px-1 transition-colors ${searchOpen ? "text-accent" : "text-gray-600 hover:text-accent"}`}
+          title="Search files"
+        >
+          &#128269;
+        </button>
         {onOpenTerminalAt && (
-          <button onClick={() => onOpenTerminalAt(currentPath)} className="text-[10px] text-gray-600 hover:text-accent" title="Terminal here">&gt;_</button>
+          <button onClick={() => onOpenTerminalAt(root || "/")} className="text-[10px] text-gray-600 hover:text-accent" title="Terminal here">&gt;_</button>
         )}
       </div>
-      {/* Entries */}
-      <div className="overflow-y-auto flex-1 max-h-48">
+
+      {/* Search input */}
+      {searchOpen && (
+        <div className="px-2 pb-1 shrink-0">
+          <input
+            ref={searchRef}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search files..."
+            className="w-full bg-surface-lighter border border-border rounded px-1.5 py-0.5 text-[11px] text-white outline-none focus:border-accent/50"
+          />
+        </div>
+      )}
+
+      {/* Tree or search results */}
+      <div className="overflow-y-auto flex-1" style={{ maxHeight: "50vh" }}>
         {loading ? (
-          <div className="text-[10px] text-gray-600 px-2 py-2">Loading...</div>
-        ) : sorted.length === 0 ? (
+          <div className="text-[10px] text-gray-600 px-2 py-2">Indexing files...</div>
+        ) : searchResults ? (
+          searchResults.length === 0 ? (
+            <div className="text-[10px] text-gray-600 px-2 py-2">No matches</div>
+          ) : (
+            searchResults.slice(0, 50).map(entry => (
+              <button
+                key={entry.path}
+                onClick={() => onOpenTerminalAt?.(entry.isDirectory ? entry.path : entry.path.substring(0, entry.path.lastIndexOf("/")) || "/")}
+                className="flex items-center gap-1 w-full text-left px-2 py-0.5 text-[11px] hover:bg-surface-lighter transition-colors text-gray-400"
+              >
+                <span className="text-[9px] shrink-0">{fileIcon(entry.name, entry.isDirectory)}</span>
+                <span className="truncate text-gray-300">{entry.name}</span>
+                <span className="text-[9px] text-gray-700 truncate ml-auto">{shortPath(entry.path, root)}</span>
+              </button>
+            ))
+          )
+        ) : tree.length === 0 ? (
           <div className="text-[10px] text-gray-600 px-2 py-2">Empty</div>
         ) : (
-          sorted.map(entry => (
-            <button
-              key={entry.path}
-              onClick={() => entry.isDirectory && listDir(entry.path)}
-              className={`flex items-center gap-1 w-full text-left px-2 py-0.5 text-[11px] hover:bg-surface-lighter transition-colors ${
-                entry.isDirectory ? "text-accent cursor-pointer" : "text-gray-500 cursor-default"
-              }`}
-            >
-              <span className="text-[9px] text-gray-700 w-4 shrink-0">{entry.isDirectory ? "\u25b8" : " "}</span>
-              <span className="truncate">{entry.name}</span>
-            </button>
-          ))
+          <TreeNodes entries={tree} depth={0} onOpenTerminalAt={onOpenTerminalAt} root={root} />
         )}
       </div>
     </div>
   );
+}
+
+function TreeNodes({ entries, depth, onOpenTerminalAt, root }: {
+  entries: FsTreeEntry[];
+  depth: number;
+  onOpenTerminalAt?: (cwd: string) => void;
+  root: string;
+}) {
+  return (
+    <>
+      {entries.map(entry => (
+        <TreeNode key={entry.path} entry={entry} depth={depth} onOpenTerminalAt={onOpenTerminalAt} root={root} />
+      ))}
+    </>
+  );
+}
+
+function TreeNode({ entry, depth, onOpenTerminalAt, root }: {
+  entry: FsTreeEntry;
+  depth: number;
+  onOpenTerminalAt?: (cwd: string) => void;
+  root: string;
+}) {
+  const [expanded, setExpanded] = useState(depth < 1);
+
+  return (
+    <div>
+      <button
+        onClick={() => {
+          if (entry.isDirectory) setExpanded(p => !p);
+          else onOpenTerminalAt?.(entry.path.substring(0, entry.path.lastIndexOf("/")) || "/");
+        }}
+        className="flex items-center gap-0.5 w-full text-left py-0.5 hover:bg-surface-lighter transition-colors text-[11px]"
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      >
+        {entry.isDirectory ? (
+          <span className="text-[9px] text-gray-600 w-3 shrink-0">{expanded ? "\u25BE" : "\u25B8"}</span>
+        ) : (
+          <span className="w-3 shrink-0" />
+        )}
+        <span className="text-[10px] shrink-0 w-4">{fileIcon(entry.name, entry.isDirectory)}</span>
+        <span className={`truncate ${entry.isDirectory ? "text-gray-200" : "text-gray-400"}`}>{entry.name}</span>
+        {!entry.isDirectory && entry.size > 0 && (
+          <span className="text-[9px] text-gray-700 ml-auto pr-2 shrink-0">{fmtSize(entry.size)}</span>
+        )}
+      </button>
+      {entry.isDirectory && expanded && entry.children && (
+        <TreeNodes entries={entry.children} depth={depth + 1} onOpenTerminalAt={onOpenTerminalAt} root={root} />
+      )}
+    </div>
+  );
+}
+
+function fileIcon(name: string, isDir: boolean): string {
+  if (isDir) return "\ud83d\udcc1";
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  const icons: Record<string, string> = {
+    ts: "\ud83d\udfe6", tsx: "\ud83d\udfe6", js: "\ud83d\udfe8", jsx: "\ud83d\udfe8",
+    json: "{ }", md: "\ud83d\udcdd", py: "\ud83d\udc0d", rs: "\ud83e\udda0",
+    go: "\ud83d\udfe2", css: "\ud83c\udfa8", html: "\ud83c\udf10", svg: "\ud83d\uddbc",
+    png: "\ud83d\uddbc", jpg: "\ud83d\uddbc", gif: "\ud83d\uddbc",
+    sh: "\ud83d\udcdc", yml: "\u2699", yaml: "\u2699", toml: "\u2699",
+    lock: "\ud83d\udd12", env: "\ud83d\udd11",
+  };
+  return icons[ext] ?? "\ud83d\udcc4";
+}
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}K`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}M`;
+}
+
+function shortPath(fullPath: string, root: string): string {
+  if (fullPath.startsWith(root)) return fullPath.slice(root.length);
+  return fullPath;
+}
+
+function flatSearch(entries: FsTreeEntry[], query: string): FsTreeEntry[] {
+  const results: FsTreeEntry[] = [];
+  function walk(items: FsTreeEntry[]) {
+    for (const item of items) {
+      if (item.name.toLowerCase().includes(query)) results.push(item);
+      if (item.children) walk(item.children);
+    }
+  }
+  walk(entries);
+  return results;
+}
+
+function applyUpdates(entries: FsTreeEntry[], changes: Array<{ action: string; entry: FsTreeEntry; parentPath: string }>): FsTreeEntry[] {
+  for (const change of changes) {
+    if (change.action === "remove") {
+      removeFromTree(entries, change.entry.path);
+    } else if (change.action === "add") {
+      addToTree(entries, change.entry, change.parentPath);
+    } else {
+      updateInTree(entries, change.entry);
+    }
+  }
+  return entries;
+}
+
+function removeFromTree(entries: FsTreeEntry[], path: string): boolean {
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].path === path) { entries.splice(i, 1); return true; }
+    if (entries[i].children && removeFromTree(entries[i].children!, path)) return true;
+  }
+  return false;
+}
+
+function addToTree(entries: FsTreeEntry[], entry: FsTreeEntry, parentPath: string): boolean {
+  for (const e of entries) {
+    if (e.path === parentPath && e.isDirectory) {
+      if (!e.children) e.children = [];
+      if (!e.children.find(c => c.path === entry.path)) e.children.push(entry);
+      return true;
+    }
+    if (e.children && addToTree(e.children, entry, parentPath)) return true;
+  }
+  return false;
+}
+
+function updateInTree(entries: FsTreeEntry[], entry: FsTreeEntry): boolean {
+  for (let i = 0; i < entries.length; i++) {
+    if (entries[i].path === entry.path) {
+      entries[i] = { ...entries[i], name: entry.name, size: entry.size };
+      return true;
+    }
+    if (entries[i].children && updateInTree(entries[i].children!, entry)) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------

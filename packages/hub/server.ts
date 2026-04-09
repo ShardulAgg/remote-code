@@ -204,6 +204,21 @@ function handleAgentMessage(
       break;
     }
 
+    case "fs-tree": {
+      const currentNodeId = getNodeIdForWs(ws);
+      if (!currentNodeId) return;
+      // Cache and broadcast to all connected browsers
+      agentRegistry.setFsTree(currentNodeId, msg.root, msg.entries);
+      break;
+    }
+
+    case "fs-tree-update": {
+      const currentNodeId = getNodeIdForWs(ws);
+      if (!currentNodeId) return;
+      agentRegistry.broadcastFsTreeUpdate(currentNodeId, msg.changes);
+      break;
+    }
+
     default:
       console.warn("[agent] Unknown message type:", (msg as { type: string }).type);
       break;

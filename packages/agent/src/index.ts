@@ -26,6 +26,7 @@ import { Connection } from "./connection.js";
 import { PtyManager } from "./pty-manager.js";
 import { getStats } from "./stats.js";
 import { handleFsRequest } from "./fs-handler.js";
+import { indexTree, watchTree } from "./fs-tree.js";
 
 // ---------------------------------------------------------------------------
 // Parse CLI arguments
@@ -170,9 +171,23 @@ function handleMessage(msg: HubToAgentMessage): void {
       break;
     }
 
+    case "request-fs-tree": {
+      const root = msg.root || os.homedir();
+      const entries = indexTree(root, msg.depth || 3);
+      connection.send({ type: "fs-tree", root, entries });
+
+      // Start watching for changes
+      if ((handleMessage as any)._treeCleanup) {
+        (handleMessage as any)._treeCleanup();
+      }
+      (handleMessage as any)._treeCleanup = watchTree(root, (changes) => {
+        connection.send({ type: "fs-tree-update", changes });
+      });
+      break;
+    }
+
     default: {
-      const _exhaustive: never = msg;
-      console.warn("[agent] Unknown message type:", (_exhaustive as HubToAgentMessage & { type: string }).type);
+      console.warn("[agent] Unknown message type:", (msg as HubToAgentMessage & { type: string }).type);
     }
   }
 }

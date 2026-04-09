@@ -39,6 +39,29 @@ export interface FsResponse {
   error?: string;
 }
 
+export interface FsTreeEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size: number;
+  children?: FsTreeEntry[];
+}
+
+export interface FsTreeReport {
+  type: "fs-tree";
+  root: string;
+  entries: FsTreeEntry[];
+}
+
+export interface FsTreeUpdate {
+  type: "fs-tree-update";
+  changes: Array<{
+    action: "add" | "remove" | "modify";
+    entry: FsTreeEntry;
+    parentPath: string;
+  }>;
+}
+
 // === Hub -> Agent Messages ===
 
 export interface SpawnPty {
@@ -126,6 +149,12 @@ export interface RenameSession {
   label: string;
 }
 
+export interface RequestNodeTree {
+  type: "request-node-tree";
+  nodeId: string;
+  root?: string;
+}
+
 export interface SubscribeNodes {
   type: "subscribe-nodes";
 }
@@ -207,18 +236,37 @@ export interface SessionInfo {
 // === Union types ===
 
 export type AgentMessage =
-  | AgentHello | PtyData | PtyExit | StatsReport | FsResponse;
+  | AgentHello | PtyData | PtyExit | StatsReport | FsResponse | FsTreeReport | FsTreeUpdate;
+
+export interface RequestFsTree {
+  type: "request-fs-tree";
+  root: string;
+  depth: number;
+}
 
 export type HubToAgentMessage =
-  | SpawnPty | PtyInput | PtyResize | KillPty | FsRequest;
+  | SpawnPty | PtyInput | PtyResize | KillPty | FsRequest | RequestFsTree;
 
 export type BrowserMessage =
   | BrowserAuth | OpenTerminal | TerminalInput | TerminalResize
-  | CloseTerminal | BrowserFsRequest | RenameSession | SubscribeNodes;
+  | CloseTerminal | BrowserFsRequest | RenameSession | RequestNodeTree | SubscribeNodes;
+
+export interface NodeFsTree {
+  type: "node-fs-tree";
+  nodeId: string;
+  root: string;
+  entries: FsTreeEntry[];
+}
+
+export interface NodeFsTreeUpdate {
+  type: "node-fs-tree-update";
+  nodeId: string;
+  changes: FsTreeUpdate["changes"];
+}
 
 export type HubToBrowserMessage =
   | AuthResult | NodeList | NodeUpdate | TerminalOpened | TerminalData
-  | TerminalClosed | BrowserFsResponse | SessionList;
+  | TerminalClosed | BrowserFsResponse | SessionList | NodeFsTree | NodeFsTreeUpdate;
 
 // === Encode/Decode ===
 

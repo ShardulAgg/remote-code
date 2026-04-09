@@ -41,6 +41,8 @@ export function handleBrowserConnection(ws: WebSocket): void {
 
   let unsubscribeNodeChange: (() => void) | null = null;
   let unsubscribeSessionChange: (() => void) | null = null;
+  let unsubscribeFsTree: (() => void) | null = null;
+  let unsubscribeFsTreeUpdate: (() => void) | null = null;
 
   ws.on("message", (raw: Buffer | string) => {
     let msg: BrowserMessage;
@@ -112,6 +114,20 @@ export function handleBrowserConnection(ws: WebSocket): void {
             ws.send(encode({ type: "session-list", sessions: buildSessionList() }));
           }
         });
+
+        // Subscribe to file tree updates
+        if (unsubscribeFsTree) unsubscribeFsTree();
+        unsubscribeFsTree = agentRegistry.onFsTree((nodeId, root, entries) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(encode({ type: "node-fs-tree", nodeId, root, entries }));
+          }
+        });
+        if (unsubscribeFsTreeUpdate) unsubscribeFsTreeUpdate();
+        unsubscribeFsTreeUpdate = agentRegistry.onFsTreeUpdate((nodeId, changes) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(encode({ type: "node-fs-tree-update", nodeId, changes }));
+          }
+        });
         break;
       }
 
@@ -168,6 +184,18 @@ export function handleBrowserConnection(ws: WebSocket): void {
         break;
       }
 
+      case "request-node-tree": {
+        const { nodeId } = msg;
+        // Check if we have a cached tree
+        const cached = agentRegistry.getFsTree(nodeId);
+        if (cached) {
+          ws.send(encode({ type: "node-fs-tree", nodeId, root: cached.root, entries: cached.entries }));
+        }
+        // Also request a fresh tree from the agent
+        agentRegistry.requestFsTree(nodeId, msg.root);
+        break;
+      }
+
       default:
         // Unknown message type, ignore
         break;
@@ -177,6 +205,8 @@ export function handleBrowserConnection(ws: WebSocket): void {
   ws.on("close", () => {
     if (unsubscribeNodeChange) unsubscribeNodeChange();
     if (unsubscribeSessionChange) unsubscribeSessionChange();
+    if (unsubscribeFsTree) unsubscribeFsTree();
+    if (unsubscribeFsTreeUpdate) unsubscribeFsTreeUpdate();
     terminalProxy.detachBrowser(ws);
   });
 
