@@ -164,7 +164,7 @@ function TerminalPageInner() {
   const cwdParam = searchParams.get("cwd") ?? undefined;
   const commandParam = searchParams.get("command") ?? undefined;
 
-  const { nodes } = useNodes();
+  const { nodes, sessions: hubSessions } = useNodes();
 
   const [tabs, setTabs] = useState<TermSession[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -175,13 +175,16 @@ function TerminalPageInner() {
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
   const activeTerminalRef = useRef<any>(null);
 
-  // Sidebar sessions derived from tabs
-  const sidebarSessions: SidebarSession[] = tabs.map(t => ({
-    id: t.id,
-    nodeId: t.nodeId,
-    sessionId: t.sessionId,
-    label: t.label,
-  }));
+  // Sidebar sessions: show ALL sessions from all nodes (from hub), with tab labels overriding
+  const sidebarSessions: SidebarSession[] = hubSessions.map((hs, i) => {
+    const tab = tabs.find(t => t.sessionId === hs.sessionId);
+    return {
+      id: hs.sessionId,
+      nodeId: hs.nodeId,
+      sessionId: hs.sessionId,
+      label: tab?.label || hs.label || `Session ${i + 1}`,
+    };
+  });
 
   // Active node from active tab
   const activeTab = tabs.find(t => t.id === activeTabId);
@@ -271,16 +274,32 @@ function TerminalPageInner() {
   }, []);
 
   const selectTab = useCallback((sessionId: string) => {
-    const tab = tabs.find(t => t.sessionId === sessionId);
+    let tab = tabs.find(t => t.sessionId === sessionId);
+
+    // If session isn't in tabs yet (from another node), add it
+    if (!tab) {
+      const hubSession = hubSessions.find(s => s.sessionId === sessionId);
+      if (hubSession) {
+        const newTab: TermSession = {
+          id: uuid(),
+          nodeId: hubSession.nodeId,
+          sessionId: hubSession.sessionId,
+          label: hubSession.label || `Session`,
+          size: 1,
+        };
+        setTabs(prev => [...prev, newTab]);
+        tab = newTab;
+      }
+    }
+
     if (tab) {
       setActiveTabId(tab.id);
-      // If this session isn't in the split tree, show it as main
       setSplitRoot(root => {
         if (root && treeContains(root, sessionId)) return root;
         return { type: "leaf", sessionId };
       });
     }
-  }, [tabs]);
+  }, [tabs, hubSessions]);
 
   // Split the active terminal in a direction, adding another tab into the new half
   const splitActive = useCallback((direction: "h" | "v") => {

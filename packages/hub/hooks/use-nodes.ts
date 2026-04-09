@@ -7,6 +7,7 @@ import { wsClient } from "../lib/ws-client";
 export interface ActiveSession {
   sessionId: string;
   nodeId: string;
+  label: string;
 }
 
 export function useNodes() {
@@ -30,7 +31,7 @@ export function useNodes() {
         });
       } else if (msg.type === "session-list") {
         const list = msg as { type: "session-list"; sessions: SessionInfo[] };
-        setSessions(list.sessions.map(s => ({ sessionId: s.sessionId, nodeId: s.nodeId })));
+        setSessions(list.sessions.map(s => ({ sessionId: s.sessionId, nodeId: s.nodeId, label: s.label || "" })));
       }
     });
 

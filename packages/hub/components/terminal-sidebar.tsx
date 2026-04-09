@@ -202,7 +202,7 @@ function TreeNode({ entry, depth, onOpenTerminalAt, root }: {
   onOpenTerminalAt?: (cwd: string) => void;
   root: string;
 }) {
-  const [expanded, setExpanded] = useState(depth < 1);
+  const [expanded, setExpanded] = useState(depth < 2);
 
   return (
     <div>
