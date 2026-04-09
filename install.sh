@@ -90,6 +90,24 @@ cat > "$INSTALL_DIR/start.sh" <<'STARTEOF'
 cd "$(dirname "$0")"
 set -a; source .env; set +a
 
+# Derive HTTP URL from WebSocket URL for status reporting
+API_URL=$(echo "$HUB_URL" | sed 's|^wss://|https://|;s|^ws://|http://|')
+NODE_ID_FILE="$HOME/.remote-code-agent/.node-id"
+NODE_ID=""
+if [ -f "$NODE_ID_FILE" ]; then
+  NODE_ID=$(cat "$NODE_ID_FILE")
+fi
+
+report_status() {
+  local status="$1" exit_code="$2" msg="$3"
+  if [ -n "$API_URL" ] && [ -n "$NODE_ID" ]; then
+    curl -sf "$API_URL/api/agent-status" \
+      -H "Content-Type: application/json" \
+      -d "{\"nodeId\":\"$NODE_ID\",\"token\":\"$TOKEN\",\"status\":\"$status\",\"exitCode\":$exit_code,\"message\":\"$msg\"}" \
+      >/dev/null 2>&1 || true
+  fi
+}
+
 MAX_RETRIES=10
 RETRY_DELAY=5
 RETRIES=0
@@ -99,15 +117,23 @@ while true; do
   npx tsx packages/agent/src/index.ts --hub "$HUB_URL" --token "$TOKEN" --name "$NODE_NAME"
   EXIT_CODE=$?
 
+  # Read node ID if we don't have it yet (agent creates it on first run)
+  if [ -z "$NODE_ID" ] && [ -f "$HOME/.remote-code-agent/node-id" ]; then
+    NODE_ID=$(cat "$HOME/.remote-code-agent/node-id")
+  fi
+
   if [ $EXIT_CODE -eq 0 ]; then
     echo "[start.sh] Agent exited cleanly (update restart). Restarting in 2s..."
+    report_status "restarting" 0 "Clean exit, restarting after update"
     RETRIES=0
     sleep 2
   else
     RETRIES=$((RETRIES + 1))
     echo "[start.sh] Agent crashed with exit code $EXIT_CODE (retry $RETRIES/$MAX_RETRIES)"
+    report_status "crashed" $EXIT_CODE "Crash retry $RETRIES/$MAX_RETRIES"
     if [ $RETRIES -ge $MAX_RETRIES ]; then
       echo "[start.sh] Max retries reached. Stopping."
+      report_status "dead" $EXIT_CODE "Max retries ($MAX_RETRIES) reached, giving up"
       exit 1
     fi
     sleep $RETRY_DELAY
