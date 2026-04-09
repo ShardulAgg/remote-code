@@ -3,12 +3,17 @@
 import { useState, useEffect } from "react";
 import { LoginForm } from "../components/login-form";
 import { NodeGrid } from "../components/node-grid";
+import { AddNodeModal } from "../components/add-node-modal";
 import { useNodes } from "../hooks/use-nodes";
 import { wsClient } from "../lib/ws-client";
 
 function Dashboard() {
   const { nodes, sessions } = useNodes();
   const onlineCount = nodes.filter((n) => n.status === "online").length;
+  const [showAddNode, setShowAddNode] = useState(false);
+
+  // Derive hub URL from current page
+  const hubUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   return (
     <>
@@ -35,10 +40,17 @@ function Dashboard() {
               <span>{nodes.length}</span>
               {" online"}
             </span>
+            <button
+              onClick={() => setShowAddNode(true)}
+              className="px-4 py-1.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/80 transition-colors"
+            >
+              + Add Node
+            </button>
           </div>
         </div>
         <NodeGrid nodes={nodes} sessions={sessions} />
       </div>
+      {showAddNode && <AddNodeModal hubUrl={hubUrl} onClose={() => setShowAddNode(false)} />}
     </>
   );
 }
