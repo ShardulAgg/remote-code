@@ -184,6 +184,11 @@ export function handleBrowserConnection(ws: WebSocket): void {
         break;
       }
 
+      case "update-node": {
+        agentRegistry.sendToAgent(msg.nodeId, JSON.stringify({ type: "self-update" }));
+        break;
+      }
+
       case "request-node-tree": {
         const { nodeId } = msg;
         // Check if we have a cached tree

@@ -10,6 +10,7 @@ import { getDb } from "./src/db/index.js";
 import {
   upsertNode,
   updateNodeStats,
+  updateNodeVersion,
   setNodeOffline,
   countAuthTokens,
   insertAuthToken,
@@ -152,11 +153,11 @@ function handleAgentMessage(
 ): void {
   switch (msg.type) {
     case "agent-hello": {
-      const { nodeId, name, os, arch, hostname, activeSessions } = msg;
-      console.log(`[agent] Node connected: ${nodeId} (${name} @ ${hostname}), ${activeSessions?.length ?? 0} active sessions`);
+      const { nodeId, name, os, arch, hostname, version, activeSessions } = msg;
+      console.log(`[agent] Node connected: ${nodeId} (${name} @ ${hostname}) v${version ?? "?"}, ${activeSessions?.length ?? 0} active sessions`);
 
       agentRegistry.register(nodeId, ws);
-      upsertNode({ nodeId, name, os, arch, hostname });
+      upsertNode({ nodeId, name, os, arch, hostname, version: version ?? "" });
       agentRegistry.notifyNodeChange(nodeId);
       onNodeId(nodeId);
 
@@ -201,6 +202,17 @@ function handleAgentMessage(
 
     case "fs-response": {
       fileProxy.handleResponse(msg.requestId, msg.data, msg.error);
+      break;
+    }
+
+    case "agent-update-result": {
+      const currentNodeId = getNodeIdForWs(ws);
+      if (!currentNodeId) return;
+      console.log(`[agent] Update result for ${currentNodeId}: ${msg.success ? "success" : "failed"} — ${msg.message}`);
+      if (msg.success) {
+        updateNodeVersion(currentNodeId, msg.newVersion);
+        agentRegistry.notifyNodeChange(currentNodeId);
+      }
       break;
     }
 

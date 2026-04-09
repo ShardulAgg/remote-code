@@ -6,6 +6,7 @@ import {
   CREATE_SESSIONS_TABLE,
   CREATE_AUTH_TOKENS_TABLE,
   MIGRATE_SESSIONS_ADD_LABEL,
+  MIGRATE_NODES_ADD_VERSION,
 } from "./schema.js";
 
 const DATA_DIR = join(process.cwd(), "data");
@@ -30,11 +31,8 @@ export function getDb(): Database.Database {
   _db.exec(CREATE_AUTH_TOKENS_TABLE);
 
   // Migrations for existing databases
-  try {
-    _db.exec(MIGRATE_SESSIONS_ADD_LABEL);
-  } catch {
-    // Column already exists
-  }
+  try { _db.exec(MIGRATE_SESSIONS_ADD_LABEL); } catch {}
+  try { _db.exec(MIGRATE_NODES_ADD_VERSION); } catch {}
 
   return _db;
 }

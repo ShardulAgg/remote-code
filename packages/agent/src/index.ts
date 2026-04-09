@@ -22,11 +22,22 @@ function getStableNodeId(): string {
     return id;
   }
 }
+import { execFile } from "child_process";
 import { Connection } from "./connection.js";
 import { PtyManager } from "./pty-manager.js";
 import { getStats } from "./stats.js";
 import { handleFsRequest } from "./fs-handler.js";
 import { indexTree, watchTree } from "./fs-tree.js";
+
+// Read version from package.json
+const AGENT_VERSION = (() => {
+  try {
+    const pkgPath = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "package.json");
+    return JSON.parse(fs.readFileSync(pkgPath, "utf8")).version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+})();
 
 // ---------------------------------------------------------------------------
 // Parse CLI arguments
@@ -83,6 +94,7 @@ const connection = new Connection({
       os: `${os.type()} ${os.release()}`,
       arch: os.arch(),
       hostname: os.hostname(),
+      version: AGENT_VERSION,
       activeSessions: ptyManager.listSessions(),
     };
     connection.send(hello);
@@ -182,6 +194,34 @@ function handleMessage(msg: HubToAgentMessage): void {
       }
       (handleMessage as any)._treeCleanup = watchTree(root, (changes) => {
         connection.send({ type: "fs-tree-update", changes });
+      });
+      break;
+    }
+
+    case "self-update": {
+      console.log("[agent] Self-update requested");
+      // Find the agent install directory
+      const agentDir = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+
+      execFile("git", ["pull"], { cwd: agentDir, timeout: 30000 }, (err, stdout, stderr) => {
+        if (err) {
+          connection.send({ type: "agent-update-result", success: false, newVersion: AGENT_VERSION, message: `git pull failed: ${stderr || err.message}` });
+          return;
+        }
+        // Run npm install
+        execFile("npm", ["install", "--loglevel=error"], { cwd: agentDir, timeout: 60000 }, (err2, stdout2, stderr2) => {
+          if (err2) {
+            connection.send({ type: "agent-update-result", success: false, newVersion: AGENT_VERSION, message: `npm install failed: ${stderr2 || err2.message}` });
+            return;
+          }
+          // Read new version
+          let newVersion = AGENT_VERSION;
+          try {
+            newVersion = JSON.parse(fs.readFileSync(path.join(agentDir, "packages/agent/package.json"), "utf8")).version ?? AGENT_VERSION;
+          } catch {}
+
+          connection.send({ type: "agent-update-result", success: true, newVersion, message: `Updated to ${newVersion}. Takes effect on next restart. Active sessions preserved.` });
+        });
       });
       break;
     }

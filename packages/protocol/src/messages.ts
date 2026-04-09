@@ -8,7 +8,15 @@ export interface AgentHello {
   os: string;
   arch: string;
   hostname: string;
+  version: string;
   activeSessions?: string[]; // sessionIds of PTYs still alive on this node
+}
+
+export interface AgentUpdateResult {
+  type: "agent-update-result";
+  success: boolean;
+  newVersion: string;
+  message: string;
 }
 
 export interface PtyData {
@@ -155,6 +163,11 @@ export interface RequestNodeTree {
   root?: string;
 }
 
+export interface UpdateNode {
+  type: "update-node";
+  nodeId: string;
+}
+
 export interface SubscribeNodes {
   type: "subscribe-nodes";
 }
@@ -184,6 +197,7 @@ export interface NodeInfo {
   os: string;
   arch: string;
   hostname: string;
+  version: string;
   cpu: number;
   memTotal: number;
   memUsed: number;
@@ -236,7 +250,7 @@ export interface SessionInfo {
 // === Union types ===
 
 export type AgentMessage =
-  | AgentHello | PtyData | PtyExit | StatsReport | FsResponse | FsTreeReport | FsTreeUpdate;
+  | AgentHello | PtyData | PtyExit | StatsReport | FsResponse | FsTreeReport | FsTreeUpdate | AgentUpdateResult;
 
 export interface RequestFsTree {
   type: "request-fs-tree";
@@ -244,12 +258,16 @@ export interface RequestFsTree {
   depth: number;
 }
 
+export interface SelfUpdate {
+  type: "self-update";
+}
+
 export type HubToAgentMessage =
-  | SpawnPty | PtyInput | PtyResize | KillPty | FsRequest | RequestFsTree;
+  | SpawnPty | PtyInput | PtyResize | KillPty | FsRequest | RequestFsTree | SelfUpdate;
 
 export type BrowserMessage =
   | BrowserAuth | OpenTerminal | TerminalInput | TerminalResize
-  | CloseTerminal | BrowserFsRequest | RenameSession | RequestNodeTree | SubscribeNodes;
+  | CloseTerminal | BrowserFsRequest | RenameSession | RequestNodeTree | UpdateNode | SubscribeNodes;
 
 export interface NodeFsTree {
   type: "node-fs-tree";

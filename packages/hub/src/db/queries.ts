@@ -9,20 +9,22 @@ export function upsertNode(info: {
   os: string;
   arch: string;
   hostname: string;
+  version?: string;
 }): void {
   const db = getDb();
   const now = Date.now();
   db.prepare(`
-    INSERT INTO nodes (node_id, name, status, os, arch, hostname, last_seen)
-    VALUES (@nodeId, @name, 'online', @os, @arch, @hostname, @lastSeen)
+    INSERT INTO nodes (node_id, name, status, os, arch, hostname, version, last_seen)
+    VALUES (@nodeId, @name, 'online', @os, @arch, @hostname, @version, @lastSeen)
     ON CONFLICT(node_id) DO UPDATE SET
       name = excluded.name,
       status = 'online',
       os = excluded.os,
       arch = excluded.arch,
       hostname = excluded.hostname,
+      version = excluded.version,
       last_seen = excluded.last_seen
-  `).run({ ...info, lastSeen: now });
+  `).run({ ...info, version: info.version ?? "", lastSeen: now });
 }
 
 export function updateNodeStats(
@@ -70,6 +72,7 @@ function rowToNodeInfo(row: Record<string, unknown>): NodeInfo {
     os: row.os as string,
     arch: row.arch as string,
     hostname: row.hostname as string,
+    version: (row.version as string) || "",
     cpu: row.cpu as number,
     memTotal: row.mem_total as number,
     memUsed: row.mem_used as number,
@@ -129,6 +132,11 @@ export function setSessionStatus(
   if (session) {
     _updateActiveSessionCount(session.node_id);
   }
+}
+
+export function updateNodeVersion(nodeId: string, version: string): void {
+  const db = getDb();
+  db.prepare(`UPDATE nodes SET version = @version WHERE node_id = @nodeId`).run({ nodeId, version });
 }
 
 export function updateSessionLabel(sessionId: string, label: string): void {

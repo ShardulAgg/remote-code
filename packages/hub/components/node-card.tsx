@@ -1,10 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { NodeInfo } from "@remote-code/protocol";
 import { StatusBadge } from "./status-badge";
 import { StatsBar } from "./stats-bar";
+import { wsClient } from "../lib/ws-client";
 import type { ActiveSession } from "../hooks/use-nodes";
+
+// Hub version — read from package.json at build time
+const HUB_VERSION = "0.2.0";
 
 interface NodeCardProps {
   node: NodeInfo;
@@ -14,6 +19,8 @@ interface NodeCardProps {
 export function NodeCard({ node, sessions = [] }: NodeCardProps) {
   const router = useRouter();
   const isOnline = node.status === "online";
+  const [updating, setUpdating] = useState(false);
+  const isOutdated = node.version && node.version !== HUB_VERSION;
 
   function openAllSessions() {
     router.push(`/terminal?node=${node.nodeId}`);
@@ -42,11 +49,32 @@ export function NodeCard({ node, sessions = [] }: NodeCardProps) {
         <StatusBadge status={node.status} />
       </div>
 
-      {/* System info */}
-      <div className="text-xs text-gray-500 flex gap-2 flex-wrap">
+      {/* System info + version */}
+      <div className="text-xs text-gray-500 flex gap-2 flex-wrap items-center">
         <span>{node.os}</span>
         <span>·</span>
         <span>{node.arch}</span>
+        {node.version && (
+          <>
+            <span>·</span>
+            <span className={isOutdated ? "text-warning" : "text-gray-500"}>
+              v{node.version}
+            </span>
+            {isOutdated && isOnline && (
+              <button
+                onClick={() => {
+                  setUpdating(true);
+                  wsClient.send({ type: "update-node", nodeId: node.nodeId });
+                  setTimeout(() => setUpdating(false), 15000);
+                }}
+                disabled={updating}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning hover:bg-warning/30 disabled:opacity-50 transition-colors"
+              >
+                {updating ? "Updating..." : "Update"}
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {/* Stats */}
