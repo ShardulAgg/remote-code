@@ -89,7 +89,30 @@ cat > "$INSTALL_DIR/start.sh" <<'STARTEOF'
 #!/usr/bin/env bash
 cd "$(dirname "$0")"
 set -a; source .env; set +a
-exec npx tsx packages/agent/src/index.ts --hub "$HUB_URL" --token "$TOKEN" --name "$NODE_NAME"
+
+MAX_RETRIES=10
+RETRY_DELAY=5
+RETRIES=0
+
+while true; do
+  echo "[start.sh] Starting agent (attempt $((RETRIES + 1)))..."
+  npx tsx packages/agent/src/index.ts --hub "$HUB_URL" --token "$TOKEN" --name "$NODE_NAME"
+  EXIT_CODE=$?
+
+  if [ $EXIT_CODE -eq 0 ]; then
+    echo "[start.sh] Agent exited cleanly (update restart). Restarting in 2s..."
+    RETRIES=0
+    sleep 2
+  else
+    RETRIES=$((RETRIES + 1))
+    echo "[start.sh] Agent crashed with exit code $EXIT_CODE (retry $RETRIES/$MAX_RETRIES)"
+    if [ $RETRIES -ge $MAX_RETRIES ]; then
+      echo "[start.sh] Max retries reached. Stopping."
+      exit 1
+    fi
+    sleep $RETRY_DELAY
+  fi
+done
 STARTEOF
 chmod +x "$INSTALL_DIR/start.sh"
 

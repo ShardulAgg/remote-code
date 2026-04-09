@@ -220,7 +220,11 @@ function handleMessage(msg: HubToAgentMessage): void {
             newVersion = JSON.parse(fs.readFileSync(path.join(agentDir, "packages/agent/package.json"), "utf8")).version ?? AGENT_VERSION;
           } catch {}
 
-          connection.send({ type: "agent-update-result", success: true, newVersion, message: `Updated to ${newVersion}. Takes effect on next restart. Active sessions preserved.` });
+          connection.send({ type: "agent-update-result", success: true, newVersion, message: `Updated to ${newVersion}. Restarting...` });
+
+          // Auto-restart — systemd or start.sh will bring us back on new code
+          console.log("[agent] Update complete, restarting in 3 seconds...");
+          setTimeout(() => process.exit(0), 3000);
         });
       });
       break;
