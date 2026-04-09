@@ -9,6 +9,7 @@ import { useNodes } from "../../hooks/use-nodes";
 import { wsClient } from "../../lib/ws-client";
 import { TerminalSidebar, SidebarSession } from "../../components/terminal-sidebar";
 import { ResizablePanes } from "../../components/resizable-panes";
+import { CodeEditor } from "../../components/code-editor";
 
 const TerminalPanel = dynamic(
   () => import("../../components/terminal-panel").then((m) => ({ default: m.TerminalPanel })),
@@ -25,6 +26,8 @@ interface TermSession {
   sessionId: string;
   label: string;
   size: number;
+  type?: "terminal" | "editor";
+  filePath?: string;
 }
 
 // Split tree: either a leaf (single terminal) or a branch (two children split H or V)
@@ -245,13 +248,38 @@ function TerminalPageInner() {
     setTimeout(() => wsClient.send({ type: "rename-session", sessionId: sid, label }), 500);
   }, [tabs, newSessionIds]);
 
+  const openFile = useCallback((nodeId: string, filePath: string) => {
+    // Check if file is already open
+    const existing = tabs.find(t => t.type === "editor" && t.filePath === filePath && t.nodeId === nodeId);
+    if (existing) {
+      setActiveTabId(existing.id);
+      setSplitRoot(root => {
+        if (root && treeContains(root, existing.sessionId)) return root;
+        return { type: "leaf", sessionId: existing.sessionId };
+      });
+      return;
+    }
+
+    const sid = `file-${uuid()}`;
+    const filename = filePath.split("/").pop() ?? filePath;
+    const tab: TermSession = {
+      id: uuid(), nodeId, sessionId: sid, label: filename, size: 1,
+      type: "editor", filePath,
+    };
+    setTabs(prev => [...prev, tab]);
+    setActiveTabId(tab.id);
+    setSplitRoot({ type: "leaf", sessionId: sid });
+  }, [tabs]);
+
   const closeTab = useCallback((tabId: string) => {
     setTabs(prev => {
       const tab = prev.find(t => t.id === tabId);
       const next = prev.filter(t => t.id !== tabId);
-      // Kill the PTY and clean up the session on the hub
       if (tab) {
-        wsClient.send({ type: "close-terminal", sessionId: tab.sessionId });
+        // Only send close-terminal for actual terminal sessions
+        if (tab.type !== "editor") {
+          wsClient.send({ type: "close-terminal", sessionId: tab.sessionId });
+        }
         setSplitRoot(root => root ? removeFromTree(root, tab.sessionId) : null);
       }
       setActiveTabId(current => {
@@ -468,6 +496,10 @@ function TerminalPageInner() {
             setTabs(prev => [...prev, tab]);
             setActiveTabId(tab.id);
             setSplitRoot({ type: "leaf", sessionId: sid });
+            if (isMobile) setSidebarCollapsed(true);
+          }}
+          onOpenFile={(nid, path) => {
+            openFile(nid, path);
             if (isMobile) setSidebarCollapsed(true);
           }}
           collapsed={isMobile ? false : sidebarCollapsed}
@@ -916,19 +948,27 @@ function SplitView({ node, tabs, nodeNames, activeSessionId, newSessionIds, cwdP
             <span className="text-gray-700 font-mono">{tab.sessionId.slice(0, 6)}</span>
           </span>
         </div>
-        <TerminalPane
-          key={tab.sessionId}
-          nodeId={tab.nodeId}
-          sessionId={tab.sessionId}
-          cwd={newSessionIds.has(tab.sessionId) ? cwdParam : undefined}
-          command={
-            newSessionIds.has(tab.sessionId)
-              ? tab.label === "Claude Code" ? "claude" : commandParam
-              : undefined
-          }
-          onSessionClosed={onSessionClosed}
-          terminalRef={isActive ? activeTerminalRef : undefined}
-        />
+        {tab.type === "editor" && tab.filePath ? (
+          <CodeEditor
+            key={tab.sessionId}
+            nodeId={tab.nodeId}
+            filePath={tab.filePath}
+          />
+        ) : (
+          <TerminalPane
+            key={tab.sessionId}
+            nodeId={tab.nodeId}
+            sessionId={tab.sessionId}
+            cwd={newSessionIds.has(tab.sessionId) ? cwdParam : undefined}
+            command={
+              newSessionIds.has(tab.sessionId)
+                ? tab.label === "Claude Code" ? "claude" : commandParam
+                : undefined
+            }
+            onSessionClosed={onSessionClosed}
+            terminalRef={isActive ? activeTerminalRef : undefined}
+          />
+        )}
         {showDropZones && (
           <DropZoneOverlay
             sessionId={tab.sessionId}

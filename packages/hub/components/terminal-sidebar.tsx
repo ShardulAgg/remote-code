@@ -29,6 +29,7 @@ interface TerminalSidebarProps {
   onCloseSession: (sessionId: string) => void;
   onRenameSession?: (sessionId: string, newLabel: string) => void;
   onOpenTerminalAt?: (nodeId: string, cwd: string) => void;
+  onOpenFile?: (nodeId: string, filePath: string) => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -84,7 +85,7 @@ function SidebarEditableLabel({ value, onChange }: { value: string; onChange?: (
 // VS Code-style file tree
 // ---------------------------------------------------------------------------
 
-function SidebarFiles({ nodeId, onOpenTerminalAt }: { nodeId: string; onOpenTerminalAt?: (cwd: string) => void }) {
+function SidebarFiles({ nodeId, onOpenTerminalAt, onOpenFile }: { nodeId: string; onOpenTerminalAt?: (cwd: string) => void; onOpenFile?: (filePath: string) => void }) {
   const [tree, setTree] = useState<FsTreeEntry[]>([]);
   const [root, setRoot] = useState("");
   const [loading, setLoading] = useState(false);
@@ -162,7 +163,7 @@ function SidebarFiles({ nodeId, onOpenTerminalAt }: { nodeId: string; onOpenTerm
             searchResults.slice(0, 50).map(entry => (
               <button
                 key={entry.path}
-                onClick={() => onOpenTerminalAt?.(entry.isDirectory ? entry.path : entry.path.substring(0, entry.path.lastIndexOf("/")) || "/")}
+                onClick={() => entry.isDirectory ? onOpenTerminalAt?.(entry.path) : onOpenFile?.(entry.path)}
                 className="flex items-center gap-1 w-full text-left px-2 py-0.5 text-[11px] hover:bg-surface-lighter transition-colors text-gray-400"
               >
                 <span className="text-[9px] shrink-0">{fileIcon(entry.name, entry.isDirectory)}</span>
@@ -174,32 +175,34 @@ function SidebarFiles({ nodeId, onOpenTerminalAt }: { nodeId: string; onOpenTerm
         ) : tree.length === 0 ? (
           <div className="text-[10px] text-gray-600 px-2 py-2">Empty</div>
         ) : (
-          <TreeNodes entries={tree} depth={0} onOpenTerminalAt={onOpenTerminalAt} root={root} />
+          <TreeNodes entries={tree} depth={0} onOpenTerminalAt={onOpenTerminalAt} onOpenFile={onOpenFile} root={root} />
         )}
       </div>
     </div>
   );
 }
 
-function TreeNodes({ entries, depth, onOpenTerminalAt, root }: {
+function TreeNodes({ entries, depth, onOpenTerminalAt, onOpenFile, root }: {
   entries: FsTreeEntry[];
   depth: number;
   onOpenTerminalAt?: (cwd: string) => void;
+  onOpenFile?: (filePath: string) => void;
   root: string;
 }) {
   return (
     <>
       {entries.map(entry => (
-        <TreeNode key={entry.path} entry={entry} depth={depth} onOpenTerminalAt={onOpenTerminalAt} root={root} />
+        <TreeNode key={entry.path} entry={entry} depth={depth} onOpenTerminalAt={onOpenTerminalAt} onOpenFile={onOpenFile} root={root} />
       ))}
     </>
   );
 }
 
-function TreeNode({ entry, depth, onOpenTerminalAt, root }: {
+function TreeNode({ entry, depth, onOpenTerminalAt, onOpenFile, root }: {
   entry: FsTreeEntry;
   depth: number;
   onOpenTerminalAt?: (cwd: string) => void;
+  onOpenFile?: (filePath: string) => void;
   root: string;
 }) {
   const [expanded, setExpanded] = useState(depth < 2);
@@ -209,7 +212,7 @@ function TreeNode({ entry, depth, onOpenTerminalAt, root }: {
       <button
         onClick={() => {
           if (entry.isDirectory) setExpanded(p => !p);
-          else onOpenTerminalAt?.(entry.path.substring(0, entry.path.lastIndexOf("/")) || "/");
+          else onOpenFile?.(entry.path);
         }}
         className="flex items-center gap-0.5 w-full text-left py-0.5 hover:bg-surface-lighter transition-colors text-[11px]"
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -226,7 +229,7 @@ function TreeNode({ entry, depth, onOpenTerminalAt, root }: {
         )}
       </button>
       {entry.isDirectory && expanded && entry.children && (
-        <TreeNodes entries={entry.children} depth={depth + 1} onOpenTerminalAt={onOpenTerminalAt} root={root} />
+        <TreeNodes entries={entry.children} depth={depth + 1} onOpenTerminalAt={onOpenTerminalAt} onOpenFile={onOpenFile} root={root} />
       )}
     </div>
   );
@@ -358,6 +361,7 @@ export function TerminalSidebar({
   onCloseSession,
   onRenameSession,
   onOpenTerminalAt,
+  onOpenFile,
   collapsed = false,
   onToggleCollapse,
 }: TerminalSidebarProps) {
@@ -470,6 +474,7 @@ export function TerminalSidebar({
           <SidebarFiles
             nodeId={activeNodeId}
             onOpenTerminalAt={onOpenTerminalAt ? (cwd) => onOpenTerminalAt(activeNodeId, cwd) : undefined}
+            onOpenFile={onOpenFile ? (path) => onOpenFile(activeNodeId, path) : undefined}
           />
         )}
 
