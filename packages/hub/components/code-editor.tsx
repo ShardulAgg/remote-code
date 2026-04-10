@@ -76,8 +76,10 @@ export function CodeEditor({ nodeId, filePath, onTitleChange }: CodeEditorProps)
     setError(null);
     sendFsRequest(nodeId, "read", filePath)
       .then((data: any) => {
-        // Decode base64 → UTF-8 properly
-        const bytes = Uint8Array.from(atob(data.content), c => c.charCodeAt(0));
+        // data is the base64 string directly, or { content: string }
+        const b64 = typeof data === "string" ? data : data?.content ?? data;
+        if (typeof b64 !== "string") throw new Error("Invalid response format");
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
         const text = new TextDecoder().decode(bytes);
         setContent(text);
         setOriginalContent(text);
@@ -91,9 +93,11 @@ export function CodeEditor({ nodeId, filePath, onTitleChange }: CodeEditorProps)
     if (content === null) return;
     setSaving(true);
     try {
-      // Encode UTF-8 → base64 properly
+      // Encode UTF-8 → base64 (chunk to avoid stack overflow on large files)
       const bytes = new TextEncoder().encode(content);
-      const base64 = btoa(String.fromCharCode(...bytes));
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
       await sendFsRequest(nodeId, "write", filePath, base64);
       setOriginalContent(content);
       setSaved(true);
