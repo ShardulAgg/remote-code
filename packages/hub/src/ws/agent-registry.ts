@@ -121,7 +121,7 @@ export class AgentRegistry {
   }
 
   requestFsTree(nodeId: string, root?: string): void {
-    this.sendToAgent(nodeId, JSON.stringify({ type: "request-fs-tree", root: root || "", depth: 3 }));
+    this.sendToAgent(nodeId, JSON.stringify({ type: "request-fs-tree", root: root || "", depth: 8 }));
   }
 }
 

@@ -169,41 +169,14 @@ function TerminalPageInner() {
 
   const { nodes, sessions: hubSessions } = useNodes();
 
-  // Restore state from localStorage on mount
-  const [tabs, setTabsRaw] = useState<TermSession[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(localStorage.getItem("rc-tabs") ?? "[]"); } catch { return []; }
-  });
-  const [activeTabId, setActiveTabId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("rc-active-tab") ?? null;
-  });
-  const [splitRoot, setSplitRoot] = useState<SplitNode | null>(() => {
-    if (typeof window === "undefined") return null;
-    try { return JSON.parse(localStorage.getItem("rc-split") ?? "null"); } catch { return null; }
-  });
+  const [tabs, setTabs] = useState<TermSession[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [splitRoot, setSplitRoot] = useState<SplitNode | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [ready, setReady] = useState(false);
   const [newSessionIds] = useState<Set<string>>(() => new Set());
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
   const activeTerminalRef = useRef<any>(null);
-
-  // Persist tabs/split to localStorage on change
-  const setTabs: typeof setTabsRaw = useCallback((v) => {
-    setTabsRaw(prev => {
-      const next = typeof v === "function" ? v(prev) : v;
-      try { localStorage.setItem("rc-tabs", JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    try { localStorage.setItem("rc-active-tab", activeTabId ?? ""); } catch {}
-  }, [activeTabId]);
-
-  useEffect(() => {
-    try { localStorage.setItem("rc-split", JSON.stringify(splitRoot)); } catch {}
-  }, [splitRoot]);
 
   // Sidebar sessions: show ALL sessions from all nodes (from hub), with tab labels overriding
   const sidebarSessions: SidebarSession[] = hubSessions.map((hs, i) => {

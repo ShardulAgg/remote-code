@@ -76,8 +76,9 @@ export function CodeEditor({ nodeId, filePath, onTitleChange }: CodeEditorProps)
     setError(null);
     sendFsRequest(nodeId, "read", filePath)
       .then((data: any) => {
-        // Content comes as base64
-        const text = atob(data.content);
+        // Decode base64 → UTF-8 properly
+        const bytes = Uint8Array.from(atob(data.content), c => c.charCodeAt(0));
+        const text = new TextDecoder().decode(bytes);
         setContent(text);
         setOriginalContent(text);
       })
@@ -90,7 +91,9 @@ export function CodeEditor({ nodeId, filePath, onTitleChange }: CodeEditorProps)
     if (content === null) return;
     setSaving(true);
     try {
-      const base64 = btoa(content);
+      // Encode UTF-8 → base64 properly
+      const bytes = new TextEncoder().encode(content);
+      const base64 = btoa(String.fromCharCode(...bytes));
       await sendFsRequest(nodeId, "write", filePath, base64);
       setOriginalContent(content);
       setSaved(true);

@@ -185,7 +185,7 @@ function handleMessage(msg: HubToAgentMessage): void {
 
     case "request-fs-tree": {
       const root = msg.root || os.homedir();
-      const entries = indexTree(root, msg.depth || 3);
+      const entries = indexTree(root, msg.depth || 8);
       connection.send({ type: "fs-tree", root, entries });
 
       // Start watching for changes

@@ -19,7 +19,7 @@ const MAX_TIME_MS = 2000;
  * Walk a directory tree up to `depth` levels and return the structure.
  * Skips heavy directories and bails out after MAX_TIME_MS or MAX_ENTRIES.
  */
-export function indexTree(root: string, depth: number = 3): FsTreeEntry[] {
+export function indexTree(root: string, depth: number = 8): FsTreeEntry[] {
   let count = 0;
   const startTime = Date.now();
 
