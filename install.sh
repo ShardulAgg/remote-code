@@ -60,14 +60,24 @@ else
 fi
 
 # 3. Clone or update the repo
-if [[ -d "$INSTALL_DIR" ]]; then
+if [[ -d "$INSTALL_DIR/.git" && -f "$INSTALL_DIR/package.json" ]]; then
   echo "[3/5] Updating existing installation..."
   cd "$INSTALL_DIR"
   git pull --quiet 2>/dev/null || true
 else
   echo "[3/5] Downloading Remote Code..."
+  # Preserve node-id if it exists
+  NODE_ID_BAK=""
+  if [[ -f "$INSTALL_DIR/node-id" ]]; then
+    NODE_ID_BAK=$(cat "$INSTALL_DIR/node-id")
+  fi
+  rm -rf "$INSTALL_DIR"
   git clone --depth=1 https://github.com/ShardulAgg/remote-code.git "$INSTALL_DIR"
   cd "$INSTALL_DIR"
+  # Restore node-id
+  if [[ -n "$NODE_ID_BAK" ]]; then
+    echo "$NODE_ID_BAK" > "$INSTALL_DIR/node-id"
+  fi
 fi
 
 # 4. Install dependencies and build
